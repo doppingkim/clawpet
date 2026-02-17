@@ -1,3 +1,7 @@
+<p align="right">
+  <a href="./OBJECT_GEN_RULE.md">English</a> | <a href="./OBJECT_GEN_RULE.ko.md">한국어</a>
+</p>
+
 # Object Generation Rule
 
 When creating new object icons for ClawGotchi, use the following guidelines.

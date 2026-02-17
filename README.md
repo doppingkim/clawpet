@@ -1,3 +1,7 @@
+<p align="right">
+  <a href="./README.md">English</a> | <a href="./README.ko.md">한국어</a>
+</p>
+
 # ClawGotchi
 
 A tamagotchi-style virtual pet that lives inside a cozy pixel-art room and reacts to your [OpenClaw](https://github.com/anthropics/openclaw) agent's work in real time.
@@ -60,8 +64,8 @@ clawgotchi/
 ## Getting Started
 
 ```bash
-git clone https://github.com/anthropics/clawgotchi.git
-cd clawgotchi
+git clone https://github.com/doppingkim/ClawGotchi.git
+cd ClawGotchi
 npm install
 npm run dev
 ```

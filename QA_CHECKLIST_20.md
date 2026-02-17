@@ -1,3 +1,9 @@
+<p align="right">
+  <a href="./QA_CHECKLIST_20.md">English</a> | <a href="./QA_CHECKLIST_20.ko.md">한국어</a>
+</p>
+
+# QA Checklist
+
 | # | Check | Result | Detail |
 |---|---|---|---|
 | 1 | Web server up | PASS | http://localhost:5173 |
