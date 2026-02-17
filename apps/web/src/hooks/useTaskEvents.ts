@@ -10,12 +10,28 @@ export function useTaskEvents() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
 
+    // 서버에 현재 작업 상태를 HTTP로 확인 (WS 이벤트를 놓친 경우 보정)
+    async function pollCurrentState() {
+      try {
+        const r = await fetch('http://localhost:8787/debug/gateway');
+        const data = await r.json();
+        console.log('[poll] gateway state:', data.currentPhase, data.broadcastedCategory);
+        if (data.currentPhase === 'working') {
+          setTaskState('working', '', data.broadcastedCategory || 'other');
+        }
+      } catch {
+        // noop
+      }
+    }
+
     function connect() {
       if (disposed) return;
       ws = new WebSocket('ws://localhost:8787/events');
 
       ws.onopen = () => {
         console.log('[ws] connected to /events');
+        // 연결 직후 현재 상태 확인
+        pollCurrentState();
       };
 
       ws.onmessage = (ev) => {

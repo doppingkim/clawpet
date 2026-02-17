@@ -466,20 +466,22 @@ export const usePetStore = create<State>((set) => ({
     }
 
     const isDone = status === 'done' || status === 'error';
+    // done 후에도 30초 유예기간 — 다음 턴이 올 때까지 가구에 머무름
+    const DONE_GRACE = 30 * 1000;
 
     return {
       statusText,
-      targetX,
-      targetY,
+      targetX: isDone ? s.targetX : targetX,  // done이면 현재 위치 유지
+      targetY: isDone ? s.targetY : targetY,
       heldItem: 'none',
       effect: 'none',
       effectUntil: 0,
-      reactUntil: 0,
+      reactUntil: isDone ? Date.now() + 4000 : 0,  // done 말풍선 4초 표시
       idleStep: 0,
       idleAt: Date.now(),
       lastTaskAt: Date.now(),
       currentCategory: isDone ? '' : category,
-      taskLockedUntil: isDone ? 0 : Date.now() + 5 * 60 * 1000,
+      taskLockedUntil: isDone ? Date.now() + DONE_GRACE : Date.now() + 5 * 60 * 1000,
       sleepPhase: 'none' as SleepPhase
     };
   })
