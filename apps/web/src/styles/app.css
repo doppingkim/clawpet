@@ -60,6 +60,26 @@ body {
   font-size: 16px;
 }
 
+.monologueToggle {
+  position: absolute;
+  right: 48px;
+  top: 8px;
+  width: 34px;
+  height: 34px;
+  border: 2px solid #1f2b43;
+  background: rgba(248, 239, 207, 0.9);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 35;
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+}
+
+.monologueToggle:hover {
+  background: rgba(248, 239, 207, 1);
+}
+
 .petBubble {
   position: absolute;
   transform: translate(-50%, -100%);
@@ -85,6 +105,15 @@ body {
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
   border-top: 8px solid #2f3d56;
+}
+
+.petBubble--task {
+  background: rgba(215, 235, 255, 0.95);
+  border-color: #4a7fb5;
+}
+
+.petBubble--task::after {
+  border-top-color: #4a7fb5;
 }
 
 .hudBars {

@@ -9,6 +9,8 @@ type GaugeKey = 'satiety' | 'affection' | 'energy';
 
 export function App() {
   const { hunger, affection, energy, statusText, petX, petY, feed, pet, say, tick, tickMove } = usePetStore();
+  const currentCategory = usePetStore((s) => s.currentCategory);
+  const monologueEnabled = usePetStore((s) => s.monologueEnabled);
   const [activeTip, setActiveTip] = useState<GaugeKey | null>(null);
   const [petName, setPetName] = useState('Claw');
   const [muted, setMuted] = useState(false);
@@ -28,7 +30,17 @@ export function App() {
       })
       .catch(() => { });
 
-    return () => {};
+    // 혼잣말 상태 동기화
+    fetch('http://localhost:8787/monologue/status')
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d?.enabled === 'boolean') {
+          usePetStore.setState({ monologueEnabled: d.enabled });
+        }
+      })
+      .catch(() => { });
+
+    return () => { };
   }, []);
 
   useEffect(() => {
@@ -297,8 +309,25 @@ export function App() {
           {muted ? '🔇' : '🔊'}
         </button>
 
+        <button
+          className="monologueToggle"
+          onClick={(e) => {
+            e.stopPropagation();
+            const nextEnabled = !monologueEnabled;
+            fetch('http://localhost:8787/monologue/toggle', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ enabled: nextEnabled })
+            }).catch(() => { });
+            usePetStore.setState({ monologueEnabled: nextEnabled });
+          }}
+          title={monologueEnabled ? '혼잣말 끄기' : '혼잣말 켜기'}
+        >
+          {monologueEnabled ? '🗣️' : '🤐'}
+        </button>
+
         {bubble && (
-          <div className="petBubble" style={{ left: petX, top: Math.max(18, petY - 38) }}>
+          <div className={`petBubble${currentCategory ? ' petBubble--task' : ''}`} style={{ left: petX, top: Math.max(18, petY - 38) }}>
             {bubble}
           </div>
         )}
