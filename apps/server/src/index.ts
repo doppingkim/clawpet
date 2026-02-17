@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { loadCategories, getCategories, analyzeCategory } from './categories.js';
-import { connectToGateway, getGatewayStatus } from './gateway-listener.js';
+import { connectToGateway, getGatewayStatus, getCurrentTaskState } from './gateway-listener.js';
 // [disabled] 방 성장 시스템 — 추후 재활성화 예정
 // import { loadTaskHistory, recordTask, checkUpgrades, getRoomUpgrades } from './room-growth.js';
 
@@ -63,6 +63,15 @@ const server = app.listen(8787, () => {
 });
 
 const wss = new WebSocketServer({ server, path: '/events' });
+
+// 새 클라이언트 연결 시 현재 작업 상태 즉시 전송
+wss.on('connection', (client) => {
+  const state = getCurrentTaskState();
+  if (state) {
+    console.log('[ws] new client — sending current task state: %s', state.category);
+    client.send(JSON.stringify(state));
+  }
+});
 
 function broadcast(payload: unknown) {
   const text = JSON.stringify(payload);

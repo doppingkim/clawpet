@@ -19,6 +19,7 @@ export function getGatewayStatus() {
         retryCount,
         wsState: ws?.readyState ?? -1,
         currentRunId,
+        currentPhase,
         broadcastedCategory,
         pendingTextLength: pendingText.length,
     };
@@ -167,6 +168,19 @@ let pendingText = '';
 let currentRunId = '';
 let broadcastedCategory = '';
 let lastSummaryBroadcast = 0;
+let currentPhase: 'idle' | 'working' = 'idle';
+
+/** 현재 진행 중인 작업 상태 반환 (없으면 null) */
+export function getCurrentTaskState() {
+    if (currentPhase !== 'working') return null;
+    return {
+        id: Date.now().toString(),
+        ts: Date.now(),
+        category: broadcastedCategory || 'other',
+        status: 'working',
+        summary: pendingText.slice(0, 100)
+    };
+}
 
 function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
     if (!payload) return;
@@ -187,6 +201,7 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
     if (stream === 'lifecycle') {
         const phase = data.phase as string;
         if (phase === 'start') {
+            currentPhase = 'working';
             console.log('[gateway-ws] agent started (run=%s)', runId.slice(0, 8));
             broadcastedCategory = 'other';
             broadcast({
@@ -197,6 +212,7 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
                 summary: ''
             });
         } else if (phase === 'end') {
+            currentPhase = 'idle';
             const matched = analyzeCategory(pendingText);
             const category = matched?.id || broadcastedCategory || 'other';
             const summary = pendingText.slice(0, 100);
