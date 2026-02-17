@@ -60,11 +60,11 @@ export function PetRoom() {
     ctx.imageSmoothingEnabled = false;
 
     const roomImg = new Image();
-    roomImg.src = '/assets/room-custom.jpg';
+    roomImg.src = '/assets/room-custom.png';
     const roomOnImg = new Image();
-    roomOnImg.src = '/assets/room-laptop-on.jpg';
+    roomOnImg.src = '/assets/room-laptop-on.png';
     const roomDarkImg = new Image();
-    roomDarkImg.src = '/assets/room-dark.jpg';
+    roomDarkImg.src = '/assets/room-dark.png';
 
     const charImg = new Image();
     charImg.src = '/assets/character-custom.png';
@@ -119,19 +119,47 @@ export function PetRoom() {
         const jumpOffset = jumping ? Math.round(Math.sin((wallNow % 260) / 260 * Math.PI) * 12) : 0;
         const drawX = Math.round(petX - drawW / 2);
         const drawY = Math.round(petY - drawH / 2 - jumpOffset);
-        ctx.drawImage(pix, 0, 0, 24, 24, drawX, drawY, drawW, drawH);
 
         const atBed = Math.hypot(petX - 140, petY - 110) < 30;
-        if (statusText.includes('침대에서 낮잠') && atBed) {
+        const isSleeping = statusText.includes('침대에서 낮잠') && atBed;
+
+        if (isSleeping) {
+          // 침대에서 낮잠: 90도 반시계 회전 (눕는 포즈)
+          const cx = drawX + drawW / 2;
+          const cy = drawY + drawH / 2;
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(-Math.PI / 2);
+          ctx.translate(-cx, -cy);
+          ctx.drawImage(pix, 0, 0, 24, 24, drawX, drawY, drawW, drawH);
+          // 이불 (회전 상태로 같이 그려짐)
           ctx.fillStyle = '#d6d1c3';
-          ctx.fillRect(drawX + 14, drawY + 34, 50, 24);
+          ctx.fillRect(drawX + 10, drawY + 30, 54, 28);
           ctx.fillStyle = '#9eb3bf';
-          ctx.fillRect(drawX + 22, drawY + 40, 10, 8);
-          ctx.fillRect(drawX + 38, drawY + 44, 10, 8);
+          ctx.fillRect(drawX + 18, drawY + 36, 12, 10);
+          ctx.fillRect(drawX + 36, drawY + 40, 12, 10);
           ctx.strokeStyle = '#4d5f6d';
-          ctx.strokeRect(drawX + 14, drawY + 34, 50, 24);
+          ctx.strokeRect(drawX + 10, drawY + 30, 54, 28);
+          ctx.restore();
+
+          // Zzz 이펙트 (회전 없이 위에)
+          const zzz = ['Z', 'z', 'Z'];
+          ctx.fillStyle = '#8090a0';
+          ctx.font = '10px "Press Start 2P", monospace';
+          const t = Date.now() / 800;
+          zzz.forEach((c, i) => {
+            const ox = petX + 20 + i * 8;
+            const oy = petY - 30 - i * 10 + Math.sin(t + i) * 3;
+            ctx.globalAlpha = 0.4 + i * 0.2;
+            ctx.fillText(c, ox, oy);
+          });
+          ctx.globalAlpha = 1;
+        } else {
+          // 일반 상태: 비회전 캐릭터
+          ctx.drawImage(pix, 0, 0, 24, 24, drawX, drawY, drawW, drawH);
         }
 
+        // 아이템 렌더
         if (heldItem === 'book') {
           ctx.fillStyle = '#f3e0ab';
           ctx.fillRect(drawX + 44, drawY + 40, 12, 8);
@@ -151,6 +179,20 @@ export function PetRoom() {
           ctx.fillRect(drawX + 52, drawY + 35, 8, 8);
           ctx.strokeStyle = '#505050';
           ctx.strokeRect(drawX + 52, drawY + 35, 8, 8);
+        } else if (heldItem === 'roller') {
+          // 이불 돌돌이 (먼지 스티커 롤러)
+          // 손잡이
+          ctx.fillStyle = '#a0a0a0';
+          ctx.fillRect(drawX + 46, drawY + 34, 3, 16);
+          // 롤러 헤드 (흰색 원통)
+          ctx.fillStyle = '#f0f0f0';
+          ctx.fillRect(drawX + 42, drawY + 46, 11, 8);
+          ctx.strokeStyle = '#888';
+          ctx.strokeRect(drawX + 42, drawY + 46, 11, 8);
+          // 접착면 표시 (점선)
+          ctx.fillStyle = '#ddd';
+          ctx.fillRect(drawX + 44, drawY + 49, 2, 2);
+          ctx.fillRect(drawX + 48, drawY + 49, 2, 2);
         }
 
         if (effect === 'water') {

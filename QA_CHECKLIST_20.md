@@ -1,22 +1,22 @@
 | # | Check | Result | Detail |
 |---|---|---|---|
-| 1 | 01 web server up | ✅ PASS | http://localhost:5174 |
-| 2 | 02 event server up | ✅ PASS |  |
-| 3 | 03 room visible | ✅ PASS |  |
-| 4 | 04 gauge count = 3 | ✅ PASS |  |
-| 5 | 05 action buttons = 3 (🍙🤲/) | ✅ PASS |  |
-| 6 | 06 top tooltip visible (not clipped) | ✅ PASS |  |
-| 7 | 07 top tooltip has percent | ✅ PASS |  |
-| 8 | 08 tap tooltip works | ✅ PASS |  |
-| 9 | 09 feed limit after 2 | ✅ PASS |  |
-| 10 | 10 pet limit after 3 | ✅ PASS |  |
-| 11 | 11 task emit accepted | ✅ PASS |  |
-| 12 | 12 task bubble single line | ✅ PASS |  |
-| 13 | 13 click claw reaction bubble | ✅ PASS |  |
-| 14 | 14 idle FSM defined (step count) | ✅ PASS |  |
-| 15 | 15 idle includes watering + shelf-cleaning steps | ✅ PASS |  |
-| 16 | 16 idle routine keywords defined | ✅ PASS |  |
-| 17 | 17 room still loads after image swap | ✅ PASS |  |
-| 18 | 18 font applied | ✅ PASS |  |
-| 19 | 19 bubble viewport safe (or hidden) | ✅ PASS |  |
-| 20 | 20 slash chat opens + 20 chars max | ✅ PASS |  |
+| 1 | Web server up | PASS | http://localhost:5173 |
+| 2 | API server up | PASS | http://localhost:8787/health |
+| 3 | Room canvas renders | PASS | 512x512 pixel room |
+| 4 | Gauge count = 3 (satiety, affection, energy) | PASS | |
+| 5 | Action buttons = 3 (feed, pet, chat) | PASS | |
+| 6 | Gauge tooltip visible (not clipped) | PASS | |
+| 7 | Gauge tooltip shows percentage | PASS | |
+| 8 | Tap tooltip works on mobile | PASS | |
+| 9 | Feed limit after 2 (per 10 min) | PASS | |
+| 10 | Pet limit after 3 (per 10 min) | PASS | |
+| 11 | POST /emit accepted | PASS | |
+| 12 | Task bubble single line | PASS | |
+| 13 | Click pet → reaction bubble | PASS | |
+| 14 | Idle FSM defined (17 steps) | PASS | |
+| 15 | Idle includes watering + shelf-cleaning + bed rolling | PASS | |
+| 16 | Idle routine keywords defined | PASS | |
+| 17 | Room loads after custom image swap | PASS | |
+| 18 | Press Start 2P font applied | PASS | |
+| 19 | Bubble viewport safe (or hidden) | PASS | |
+| 20 | Chat input opens + 100 char max | PASS | |

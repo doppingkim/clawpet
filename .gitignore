@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+*.png:Zone.Identifier
+data/task_history.json
+data/categories.json
+data/room_upgrades.json

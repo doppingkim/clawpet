@@ -4,12 +4,15 @@ import { WebSocketServer } from 'ws';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { loadCategories, getCategories, analyzeCategory } from './categories.js';
+import { connectToGateway } from './gateway-listener.js';
+import { loadTaskHistory, recordTask, checkUpgrades, getRoomUpgrades } from './room-growth.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// openclaw.json에서 gateway 설정을 직접 읽기 (텔레그램과 동일 경로)
+// openclaw.json에서 gateway 설정을 직접 읽기
 function loadOpenClawConfig() {
   try {
     const cfgPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
@@ -40,6 +43,16 @@ function resolveAssistantName() {
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/profile', (_req, res) => res.json({ assistantName: resolveAssistantName() }));
 
+// 카테고리 API
+app.get('/categories', (_req, res) => {
+  res.json({ categories: getCategories() });
+});
+
+// 방 업그레이드 API
+app.get('/upgrades', (_req: any, res: any) => {
+  res.json({ upgrades: getRoomUpgrades() });
+});
+
 const server = app.listen(8787, () => {
   console.log('ClawGotchi server on http://localhost:8787');
 });
@@ -51,6 +64,24 @@ function broadcast(payload: unknown) {
   for (const client of wss.clients) {
     if (client.readyState === 1) client.send(text);
   }
+}
+
+// 카테고리 레지스트리 + 태스크 히스토리 로드
+loadCategories();
+loadTaskHistory();
+
+// Gateway WS 리스너 시작
+const cfg = loadOpenClawConfig();
+if (cfg) {
+  const port = cfg?.gateway?.port || 18789;
+  const token = cfg?.gateway?.auth?.token || '';
+  if (token) {
+    connectToGateway(port, token, broadcast);
+  } else {
+    console.warn('[init] no gateway token, skipping WS listener');
+  }
+} else {
+  console.warn('[init] no openclaw.json, skipping WS listener');
 }
 
 async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: string } | { ok: false; reason: string }> {
@@ -104,7 +135,6 @@ async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: strin
       reply = parsed?.reply || '';
       parsedStatus = parsed?.status || '';
     } catch {
-      // content가 JSON이 아닌 경우 그대로 사용
       reply = data?.result?.content?.[0]?.text || '';
     }
 
@@ -131,12 +161,27 @@ async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: strin
   }
 }
 
-app.post('/emit', (req, res) => {
+app.post('/emit', (req: any, res: any) => {
   const body = req.body || {};
+
+  // 카테고리 분석: body.category가 없으면 summary에서 추출
+  let category = body.category || 'other';
+  if (body.summary && category === 'other') {
+    const matched = analyzeCategory(body.summary);
+    if (matched) category = matched.id;
+  }
+
+  // 태스크 기록 + 방 성장 체크
+  recordTask(category);
+  const newUpgrades = checkUpgrades();
+  if (newUpgrades.length > 0) {
+    console.log('[room-growth] new upgrades:', newUpgrades.map(u => u.label).join(', '));
+  }
+
   broadcast({
     id: body.id || Date.now().toString(),
     ts: body.ts || Date.now(),
-    category: body.category || 'other',
+    category,
     status: body.status || 'working',
     summary: body.summary || ''
   });
@@ -147,14 +192,12 @@ app.post('/chat', async (req, res) => {
   const msg = String(req.body?.message || '').trim().slice(0, 100);
   if (!msg) return res.json({ reply: '네!' });
 
-  // OpenClaw 세션으로 메시지 전달 (텔레그램과 동일 경로: sessions_send)
   const sent = await sendToOpenClaw(msg);
 
   if (sent.ok) {
     return res.json({ reply: sent.reply.slice(0, 100) });
   }
 
-  // 실패 원인별 사용자 피드백
   console.warn('[chat] send failed reason=%s', sent.reason);
   const reasonMap: Record<string, string> = {
     'no-token': '토큰 미설정',
@@ -165,7 +208,7 @@ app.post('/chat', async (req, res) => {
     'invoke-failed': '실행 실패',
   };
   const reply = reasonMap[sent.reason] || `실패: ${sent.reason}`;
-  return res.json({ reply: reply.slice(0, 20) });
+  return res.json({ reply: reply.slice(0, 100) });
 });
 
 if (process.env.MOCK_EVENTS === '1') {

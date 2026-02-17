@@ -26,9 +26,9 @@ export function App() {
       .then((d) => {
         if (d?.assistantName) setPetName(d.assistantName);
       })
-      .catch(() => {
-        // noop
-      });
+      .catch(() => { });
+
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -75,13 +75,14 @@ export function App() {
     return audioCtxRef.current;
   };
 
-  const playSfx = (kind: 'typing' | 'water' | 'page') => {
+  const playSfx = (kind: 'typing' | 'water' | 'page' | 'walk' | 'feed' | 'petting' | 'sleep' | 'pop') => {
     if (muted) return;
     const ctx = ensureAudio();
     if (!ctx) return;
     const t0 = ctx.currentTime;
 
     if (kind === 'typing') {
+      // 타닥타닥
       for (let i = 0; i < 6; i++) {
         const osc = ctx.createOscillator();
         const g = ctx.createGain();
@@ -124,6 +125,85 @@ export function App() {
       osc.start();
       osc.stop(t0 + 0.22);
     }
+
+    if (kind === 'walk') {
+      // 뽀각 뽀각 (짧은 탭 2개)
+      for (let i = 0; i < 2; i++) {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = 260 + i * 30;
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.12);
+        g.gain.exponentialRampToValueAtTime(0.02, t0 + i * 0.12 + 0.01);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.12 + 0.06);
+        osc.connect(g).connect(ctx.destination);
+        osc.start(t0 + i * 0.12);
+        osc.stop(t0 + i * 0.12 + 0.07);
+      }
+    }
+
+    if (kind === 'feed') {
+      // 냠냠 (부드러운 짧은 음 3개)
+      for (let i = 0; i < 3; i++) {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 440 + i * 60;
+        g.gain.setValueAtTime(0.0001, t0 + i * 0.14);
+        g.gain.exponentialRampToValueAtTime(0.05, t0 + i * 0.14 + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.14 + 0.1);
+        osc.connect(g).connect(ctx.destination);
+        osc.start(t0 + i * 0.14);
+        osc.stop(t0 + i * 0.14 + 0.12);
+      }
+    }
+
+    if (kind === 'petting') {
+      // 뽁 (짧고 부드러운 팝)
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, t0);
+      osc.frequency.exponentialRampToValueAtTime(200, t0 + 0.15);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.15);
+      osc.connect(g).connect(ctx.destination);
+      osc.start();
+      osc.stop(t0 + 0.16);
+    }
+
+    if (kind === 'sleep') {
+      // 코오~ (저음 드론)
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(90, t0);
+      osc.frequency.linearRampToValueAtTime(70, t0 + 0.8);
+      osc.frequency.linearRampToValueAtTime(90, t0 + 1.6);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.02, t0 + 0.1);
+      g.gain.setValueAtTime(0.02, t0 + 0.8);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.6);
+      osc.connect(g).connect(ctx.destination);
+      osc.start();
+      osc.stop(t0 + 1.7);
+    }
+
+    if (kind === 'pop') {
+      // 기본 알림음
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(523, t0);
+      osc.frequency.linearRampToValueAtTime(660, t0 + 0.08);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.04, t0 + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.12);
+      osc.connect(g).connect(ctx.destination);
+      osc.start();
+      osc.stop(t0 + 0.13);
+    }
   };
 
   const playBgmBar = () => {
@@ -146,12 +226,31 @@ export function App() {
     });
   };
 
+  // 이동 중 뽀각 소리 (주기적)
+  const walkSfxRef = useRef(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = usePetStore.getState();
+      const moving = Math.hypot(s.targetX - s.petX, s.targetY - s.petY) > 5;
+      if (moving) {
+        walkSfxRef.current++;
+        if (walkSfxRef.current % 6 === 0) playSfx('walk'); // 매 6틱마다 뽀각
+      }
+    }, 200);
+    return () => clearInterval(id);
+  }, [muted]);
+
   useEffect(() => {
     if (!statusText || statusText === lastStatusRef.current) return;
     lastStatusRef.current = statusText;
-    if (statusText.includes('코딩 작업')) playSfx('typing');
+    // 상황별 SFX 매칭
+    if (statusText.includes('냠냠') || statusText.includes('밥')) playSfx('feed');
+    else if (statusText.includes('기분 좋아') || statusText.includes('간지러워') || statusText.includes('더 해줘')) playSfx('petting');
+    else if (statusText.includes('침대에서 낮잠')) playSfx('sleep');
+    else if (statusText.includes('코딩') || statusText.includes('타닥')) playSfx('typing');
     else if (statusText.includes('칙칙')) playSfx('water');
-    else if (statusText.includes('만화책')) playSfx('page');
+    else if (statusText.includes('만화책 보는')) playSfx('page');
+    else if (statusText.includes('완료')) playSfx('pop');
   }, [statusText, muted]);
 
   useEffect(() => {
