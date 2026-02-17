@@ -24,11 +24,6 @@ Feed it, pet it, chat with it — or just watch it go about its little daily rou
 - When idle, the pet reads books, waters plants, dusts shelves, rolls lint off the bed, checks the calendar, and naps
 - Sleeping animation with blanket and floating Zzz
 
-**Room Growth**
-- Task history is tracked over 30 days
-- When a category dominates your recent work (e.g., 40%+ coding), the room upgrades (dual monitors → triple screen setup)
-- 5 upgrade paths: coding, shopping, writing, research, calendar
-
 **Audio**
 - Procedural SFX for each action (typing, watering, page flip, walking, feeding, petting, sleeping, pop)
 - Chiptune BGM loop
@@ -42,8 +37,7 @@ clawgotchi/
 │   ├── server/          # Express + WebSocket server (port 8787)
 │   │   ├── index.ts           # REST API + WS broadcast
 │   │   ├── categories.ts      # Dynamic category registry (12 built-in + custom)
-│   │   ├── gateway-listener.ts # OpenClaw Gateway WS client
-│   │   └── room-growth.ts     # Task-history-based room upgrades
+│   │   └── gateway-listener.ts # OpenClaw Gateway WS client
 │   └── web/             # React + Canvas frontend (port 5173)
 │       ├── components/PetRoom.tsx    # Canvas renderer (room, character, items, effects)
 │       ├── hooks/useTaskEvents.ts    # WS event listener
@@ -52,7 +46,7 @@ clawgotchi/
 ├── packages/shared/     # Shared TypeScript types
 ├── bin/clawgotchi.mjs   # CLI launcher (opens browser window)
 ├── scripts/             # Asset generation scripts (pngjs-based pixel art)
-└── data/                # Runtime data (categories, task history, room upgrades)
+└── data/                # Runtime data (categories)
 ```
 
 ## Requirements
@@ -108,9 +102,6 @@ Returns the assistant name (read from `openclaw.json` or `IDENTITY.md`).
 ### `GET /categories`
 Returns all registered task categories (built-in + dynamic).
 
-### `GET /upgrades`
-Returns current room upgrade status.
-
 ### `POST /emit`
 Inject a task event. The server auto-categorizes the summary if no category is provided.
 ```bash
@@ -146,16 +137,6 @@ WebSocket endpoint for real-time task event streaming to the frontend.
 | cooking | Cooking | Stove |
 | finance | Finance | Laptop |
 | learning | Learning | Notebook |
-
-## Room Upgrade Thresholds (7-day window)
-
-| Category | Level 1 | Level 2 |
-|----------|---------|---------|
-| coding | 40% → Dual monitors | 80% → Triple screen |
-| shopping | 25% → Large cart | 50% → Delivery boxes |
-| writing | 30% → Typewriter | 60% → Extended bookshelf |
-| research | 30% → Magnifier | 60% → Research board |
-| calendar | 30% → Digital calendar | 60% → Planner desk |
 
 ## Environment Variables
 

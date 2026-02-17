@@ -6,11 +6,16 @@ import path from 'path';
 import os from 'os';
 import { loadCategories, getCategories, analyzeCategory } from './categories.js';
 import { connectToGateway } from './gateway-listener.js';
-import { loadTaskHistory, recordTask, checkUpgrades, getRoomUpgrades } from './room-growth.js';
+// [disabled] 방 성장 시스템 — 추후 재활성화 예정
+// import { loadTaskHistory, recordTask, checkUpgrades, getRoomUpgrades } from './room-growth.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// 혼잣말 상태
+let monologueEnabled = true;
+let monologueTimer: ReturnType<typeof setInterval> | null = null;
 
 // openclaw.json에서 gateway 설정을 직접 읽기
 function loadOpenClawConfig() {
@@ -48,10 +53,10 @@ app.get('/categories', (_req, res) => {
   res.json({ categories: getCategories() });
 });
 
-// 방 업그레이드 API
-app.get('/upgrades', (_req: any, res: any) => {
-  res.json({ upgrades: getRoomUpgrades() });
-});
+// [disabled] 방 업그레이드 API — 추후 재활성화 예정
+// app.get('/upgrades', (_req: any, res: any) => {
+//   res.json({ upgrades: getRoomUpgrades() });
+// });
 
 const server = app.listen(8787, () => {
   console.log('ClawGotchi server on http://localhost:8787');
@@ -66,9 +71,9 @@ function broadcast(payload: unknown) {
   }
 }
 
-// 카테고리 레지스트리 + 태스크 히스토리 로드
+// 카테고리 레지스트리 로드
 loadCategories();
-loadTaskHistory();
+// [disabled] loadTaskHistory();
 
 // Gateway WS 리스너 시작
 const cfg = loadOpenClawConfig();
@@ -171,12 +176,12 @@ app.post('/emit', (req: any, res: any) => {
     if (matched) category = matched.id;
   }
 
-  // 태스크 기록 + 방 성장 체크
-  recordTask(category);
-  const newUpgrades = checkUpgrades();
-  if (newUpgrades.length > 0) {
-    console.log('[room-growth] new upgrades:', newUpgrades.map(u => u.label).join(', '));
-  }
+  // [disabled] 방 성장 시스템 — 추후 재활성화 예정
+  // recordTask(category);
+  // const newUpgrades = checkUpgrades();
+  // if (newUpgrades.length > 0) {
+  //   console.log('[room-growth] new upgrades:', newUpgrades.map(u => u.label).join(', '));
+  // }
 
   broadcast({
     id: body.id || Date.now().toString(),
@@ -188,9 +193,87 @@ app.post('/emit', (req: any, res: any) => {
   res.json({ ok: true });
 });
 
+// --- 혼잣말 시스템 ---
+app.get('/monologue/status', (_req: any, res: any) => {
+  res.json({ enabled: monologueEnabled });
+});
+
+app.post('/monologue/toggle', (req: any, res: any) => {
+  const body = req.body || {};
+  if (typeof body.enabled === 'boolean') {
+    monologueEnabled = body.enabled;
+  } else {
+    monologueEnabled = !monologueEnabled;
+  }
+  console.log('[monologue] toggled to:', monologueEnabled);
+  // 프론트엔드에 상태 알림
+  broadcast({ type: 'monologue-status', enabled: monologueEnabled });
+  res.json({ ok: true, enabled: monologueEnabled });
+});
+
+async function generateMonologue() {
+  if (!monologueEnabled) return;
+  console.log('[monologue] generating self-talk...');
+  const result = await sendToOpenClaw(
+    '혼잣말을 하나 해줘. 지금 네 기분이나 하고 싶은 것, 궁금한 것 등을 100자 이내로 자연스럽게 혼잣말처럼 말해줘. "..." 같은 표현도 좋아. 대답 형식이 아니라 진짜 혼잣말이어야 해.'
+  );
+  if (result.ok && result.reply) {
+    console.log('[monologue] generated:', result.reply);
+    broadcast({
+      type: 'monologue',
+      text: result.reply.slice(0, 100),
+      ts: Date.now()
+    });
+  } else {
+    console.warn('[monologue] generation failed:', result.ok ? 'empty' : (result as any).reason);
+  }
+}
+
+// 10분(600000ms)마다 혼잣말 생성
+function startMonologueTimer() {
+  if (monologueTimer) clearInterval(monologueTimer);
+  monologueTimer = setInterval(() => {
+    if (monologueEnabled) generateMonologue();
+  }, 10 * 60 * 1000); // 10분
+  console.log('[monologue] timer started (every 10 min)');
+}
+startMonologueTimer();
+
+// 외부 cron에서 트리거 (서버 내장 타이머의 보조)
+app.post('/monologue/trigger', (_req: any, res: any) => {
+  if (!monologueEnabled) {
+    return res.json({ ok: false, reason: 'disabled' });
+  }
+  generateMonologue();
+  res.json({ ok: true });
+});
+
 app.post('/chat', async (req, res) => {
   const msg = String(req.body?.message || '').trim().slice(0, 100);
   if (!msg) return res.json({ reply: '네!' });
+
+  // 혼잣말 on/off 자연어 처리
+  const msgLower = msg.toLowerCase();
+  const isMonologueCmd = msgLower.includes('혼잣말');
+  if (isMonologueCmd) {
+    const turnOff = msgLower.includes('그만') || msgLower.includes('끄') || msgLower.includes('중지') || msgLower.includes('멈춰') || msgLower.includes('없애') || msgLower.includes('꺼');
+    const turnOn = msgLower.includes('켜') || msgLower.includes('시작') || msgLower.includes('다시') || msgLower.includes('해줘');
+    if (turnOff) {
+      monologueEnabled = false;
+      broadcast({ type: 'monologue-status', enabled: false });
+      return res.json({ reply: '혼잣말 그만할게요... 🤐' });
+    } else if (turnOn) {
+      monologueEnabled = true;
+      broadcast({ type: 'monologue-status', enabled: true });
+      return res.json({ reply: '혼잣말 다시 시작할게요! 🗣️' });
+    }
+  }
+  // "10분마다" 관련 자연어도 처리
+  if ((msgLower.includes('10분') || msgLower.includes('십분')) && (msgLower.includes('그만') || msgLower.includes('끄') || msgLower.includes('멈'))) {
+    monologueEnabled = false;
+    broadcast({ type: 'monologue-status', enabled: false });
+    return res.json({ reply: '알겠어요, 10분마다 말하는 거 그만할게요! 🤐' });
+  }
 
   const sent = await sendToOpenClaw(msg);
 
