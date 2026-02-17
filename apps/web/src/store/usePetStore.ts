@@ -40,6 +40,7 @@ type State = {
   roomDark: boolean;
   dynamicCategories: CategoryDef[];
   currentCategory: string;  // 현재 작업 카테고리
+  taskLockedUntil: number;  // 작업 고정 만료 시각 (0이면 미고정)
   sleepPhase: SleepPhase;  // 수면 단계 추적
   monologueEnabled: boolean;  // 혼잣말 on/off
   feed: () => void;
@@ -186,6 +187,7 @@ export const usePetStore = create<State>((set) => ({
   roomDark: false,
   dynamicCategories: [],
   currentCategory: '',
+  taskLockedUntil: 0,
   sleepPhase: 'none',
   monologueEnabled: true,
 
@@ -266,6 +268,14 @@ export const usePetStore = create<State>((set) => ({
 
     let statusText = s.statusText;
     let reactUntil = s.reactUntil;
+    let currentCategory = s.currentCategory;
+    let taskLockedUntil = s.taskLockedUntil;
+
+    // 작업 고정 타임아웃 만료 → 자동 해제 (5분 안전장치)
+    if (taskLockedUntil > 0 && now > taskLockedUntil) {
+      currentCategory = '';
+      taskLockedUntil = 0;
+    }
 
     // reactUntil 만료 처리
     if (reactUntil > 0 && now > reactUntil) {
@@ -273,8 +283,8 @@ export const usePetStore = create<State>((set) => ({
       reactUntil = 0;
     }
 
-    // 상태 기반 말풍선 (reactUntil이 비어있을 때만)
-    if (!statusText || reactUntil === 0) {
+    // 상태 기반 말풍선 (작업 중이 아닐 때만)
+    if (!currentCategory && (!statusText || reactUntil === 0)) {
       const stateMsg = getStateBubble({ hunger, affection, energy });
       if (stateMsg) {
         statusText = stateMsg;
@@ -282,7 +292,7 @@ export const usePetStore = create<State>((set) => ({
       }
     }
 
-    return { hunger, affection, energy, statusText, reactUntil };
+    return { hunger, affection, energy, statusText, reactUntil, currentCategory, taskLockedUntil };
   }),
 
   tickMove: () => set((s) => {
@@ -298,7 +308,9 @@ export const usePetStore = create<State>((set) => ({
     let statusText = s.statusText;
     let sleepPhase: SleepPhase = s.sleepPhase;
 
-    const isIdleTime = now - s.lastTaskAt > 18000;
+    // 작업 고정 중이면 idle 진입 차단 (5분 타임아웃 안전장치)
+    const taskLocked = s.taskLockedUntil > now;
+    const isIdleTime = !taskLocked && now - s.lastTaskAt > 18000;
     const isAtTarget = Math.hypot(s.targetX - s.petX, s.targetY - s.petY) < 5;
 
     // 수면 단계 전환 처리 (도착했을 때)
@@ -428,7 +440,7 @@ export const usePetStore = create<State>((set) => ({
     };
   }),
 
-  setTaskState: (status, _summary, category = 'other') => set((s) => {
+  setTaskState: (status, summary, category = 'other') => set((s) => {
     let targetX = s.targetX;
     let targetY = s.targetY;
 
@@ -440,16 +452,20 @@ export const usePetStore = create<State>((set) => ({
       targetY = safe.y;
     }
 
-    // 감정 기반 말풍선
+    // 말풍선: summary 우선, 없으면 템플릿 fallback
     const mood = { hunger: s.hunger, affection: s.affection, energy: s.energy };
     let statusText = '';
     if (status === 'done') {
       statusText = '완료! ✨';
     } else if (status === 'error') {
       statusText = '에러 확인 중... 🔍';
+    } else if (summary && summary.trim()) {
+      statusText = summary.trim().slice(0, 60);
     } else {
       statusText = getTaskBubble(category, mood);
     }
+
+    const isDone = status === 'done' || status === 'error';
 
     return {
       statusText,
@@ -462,7 +478,8 @@ export const usePetStore = create<State>((set) => ({
       idleStep: 0,
       idleAt: Date.now(),
       lastTaskAt: Date.now(),
-      currentCategory: (status === 'done' || status === 'error') ? '' : category,
+      currentCategory: isDone ? '' : category,
+      taskLockedUntil: isDone ? 0 : Date.now() + 5 * 60 * 1000,
       sleepPhase: 'none' as SleepPhase
     };
   })

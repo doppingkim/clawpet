@@ -166,6 +166,7 @@ function handleGatewayMessage(msg: any, broadcast: BroadcastFn) {
 let pendingText = '';
 let currentRunId = '';
 let broadcastedCategory = '';
+let lastSummaryBroadcast = 0;
 
 function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
     if (!payload) return;
@@ -179,6 +180,7 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
         currentRunId = runId;
         pendingText = '';
         broadcastedCategory = '';
+        lastSummaryBroadcast = 0;
     }
 
     // lifecycle 이벤트
@@ -220,22 +222,36 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
         return;
     }
 
-    // assistant 스트리밍: 텍스트 누적, 카테고리가 바뀔 때만 1회 브로드캐스트
+    // assistant 스트리밍: 텍스트 누적 + 주기적 summary 업데이트
     if (stream === 'assistant') {
         const newText = (data.text as string) || '';
         if (newText) pendingText = newText;
 
         const matched = analyzeCategory(pendingText);
         const category = matched?.id || 'other';
+        const now = Date.now();
 
-        // 카테고리가 처음 확정됐을 때만 (other → 구체적 카테고리) 1번 브로드캐스트
+        // 카테고리가 처음 확정됐을 때 즉시 브로드캐스트
         if (category !== 'other' && category !== broadcastedCategory) {
             broadcastedCategory = category;
+            lastSummaryBroadcast = now;
             console.log('[gateway-ws] category detected: %s (from %d chars)', category, pendingText.length);
             broadcast({
-                id: Date.now().toString(),
-                ts: Date.now(),
+                id: now.toString(),
+                ts: now,
                 category,
+                status: 'working',
+                summary: pendingText.slice(0, 100)
+            });
+        }
+        // 15초마다 summary 업데이트 브로드캐스트
+        else if (now - lastSummaryBroadcast > 15000 && pendingText.length > 0) {
+            lastSummaryBroadcast = now;
+            const cat = broadcastedCategory || category;
+            broadcast({
+                id: now.toString(),
+                ts: now,
+                category: cat,
                 status: 'working',
                 summary: pendingText.slice(0, 100)
             });
