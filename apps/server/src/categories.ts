@@ -57,7 +57,7 @@ const BUILT_IN: CategoryDef[] = [
     { id: 'art', label: '미술/디자인', keywords: [
         '그림', '디자인', '이미지', '로고', '일러스트', '스케치', '색상', '폰트', '레이아웃', '와이어프레임', '목업', '픽셀', '아이콘', '배너', '포스터', '인포그래픽', '타이포', '브랜딩', '캐릭터디자인', '컨셉아트',
         'draw', 'design', 'image', 'logo', 'illustration', 'sketch', 'figma', 'ui', 'ux', 'color', 'font', 'layout', 'mockup', 'icon', 'banner', 'poster', 'infographic', 'branding', 'concept art', 'photoshop', 'canva', 'adobe',
-    ], target: { x: 440, y: 210 }, icon: '', count: 0, builtIn: true },
+    ], target: { x: 300, y: 170 }, icon: '', count: 0, builtIn: true },
     { id: 'cooking', label: '요리', keywords: [
         '요리', '레시피', '음식', '식단', '재료', '맛', '식사', '간식', '반찬', '국', '찌개', '볶음', '구이', '베이킹', '디저트', '소스', '양념', '칼로리', '다이어트', '영양', '식재료', '마트', '냉장고', '밀프렙',
         'cook', 'recipe', 'food', 'meal', 'ingredient', 'dish', 'kitchen', 'restaurant', 'cafe', 'bake', 'dessert', 'sauce', 'seasoning', 'calorie', 'diet', 'nutrition', 'grocery', 'menu', 'brunch', 'dinner',

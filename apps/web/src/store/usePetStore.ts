@@ -71,7 +71,7 @@ const TARGET: Record<string, { x: number; y: number }> = {
   center: { x: 260, y: 300 },
   guitar: { x: 320, y: 200 },
   stove: { x: 380, y: 290 },
-  canvas: { x: 440, y: 210 },
+  canvas: { x: 300, y: 170 },
   gamepad: { x: 235, y: 290 },
   notebook: { x: 145, y: 420 },
   notepad: { x: 165, y: 370 },
