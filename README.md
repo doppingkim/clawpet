@@ -127,16 +127,16 @@ WebSocket endpoint for real-time task event streaming to the frontend.
 |----------|-------|-----------------|
 | coding | Coding | Laptop |
 | shopping | Shopping | Basket |
-| calendar | Calendar | Calendar |
-| writing | Writing | Bookshelf |
-| research | Research | Desk |
+| calendar | Calendar/Comms | Calendar |
+| writing | Writing | Notepad (near cushion) |
+| research | Research | Bookshelf |
 | music | Music | Guitar |
-| communication | Communication | Laptop |
+| communication | Communication | Calendar |
 | gaming | Gaming | Gamepad |
 | art | Art/Design | Canvas |
-| cooking | Cooking | Stove |
-| finance | Finance | Laptop |
-| learning | Learning | Notebook |
+| cooking | Cooking | Gas Stove |
+| finance | Finance/Economy | Laptop |
+| learning | Learning | Bookshelf |
 
 ## Environment Variables
 

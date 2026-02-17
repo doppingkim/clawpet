@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { getTaskBubble, getStateBubble, getIdleMoodBubble } from './bubbleTemplates';
 
 type HeldItem = 'none' | 'book' | 'watering' | 'duster' | 'roller';
+type SleepPhase = 'none' | 'moving' | 'settling' | 'blanketed' | 'sleeping' | 'waking';
 type Effect = 'none' | 'water' | 'dust';
 
 /** 서버에서 받아온 동적 카테고리 */
@@ -39,6 +40,8 @@ type State = {
   roomDark: boolean;
   dynamicCategories: CategoryDef[];
   currentCategory: string;  // 현재 작업 카테고리
+  sleepPhase: SleepPhase;  // 수면 단계 추적
+  monologueEnabled: boolean;  // 혼잣말 on/off
   feed: () => void;
   pet: () => void;
   rest: () => void;
@@ -46,6 +49,7 @@ type State = {
   tickMove: () => void;
   reactPetClick: () => void;
   toggleRoomLight: () => void;
+  toggleMonologue: () => void;
   say: (text: string, durationMs?: number) => void;
   setTaskState: (status: string, summary?: string, category?: string) => void;
   setDynamicCategories: (cats: CategoryDef[]) => void;
@@ -56,10 +60,10 @@ const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(ma
 const TARGET: Record<string, { x: number; y: number }> = {
   laptop: { x: 190, y: 344 },
   cart: { x: 368, y: 420 },
-  calendar: { x: 412, y: 268 },
+  calendar: { x: 440, y: 218 },
   shelf: { x: 400, y: 142 },
   plant: { x: 440, y: 404 },
-  bed: { x: 214, y: 214 },
+  bed: { x: 214, y: 170 },
   bedSleep: { x: 124, y: 96 },
   cushion: { x: 190, y: 344 },
   desk: { x: 162, y: 342 },
@@ -68,29 +72,31 @@ const TARGET: Record<string, { x: number; y: number }> = {
   stove: { x: 380, y: 290 },
   canvas: { x: 440, y: 210 },
   gamepad: { x: 235, y: 290 },
-  notebook: { x: 145, y: 420 }
+  notebook: { x: 145, y: 420 },
+  notepad: { x: 165, y: 370 },
 };
 
 const builtInCategoryTarget: Record<string, string> = {
   coding: 'laptop',
   shopping: 'cart',
   calendar: 'calendar',
-  writing: 'shelf',
-  research: 'desk',
+  writing: 'notepad',
+  research: 'shelf',
   music: 'guitar',
   cooking: 'stove',
   art: 'canvas',
   gaming: 'gamepad',
-  learning: 'notebook',
-  communication: 'laptop',
+  learning: 'shelf',
+  communication: 'calendar',
   finance: 'laptop'
 };
 
 const BLOCKS = [
-  { x1: 52, y1: 52, x2: 260, y2: 196 },
-  { x1: 300, y1: 52, x2: 456, y2: 194 },
-  { x1: 28, y1: 250, x2: 138, y2: 500 },
-  { x1: 306, y1: 430, x2: 486, y2: 504 }
+  { x1: 52, y1: 52, x2: 260, y2: 196 },   // 침대 영역
+  { x1: 300, y1: 52, x2: 456, y2: 194 },   // 책장/기타/캔버스 영역
+  { x1: 28, y1: 250, x2: 138, y2: 500 },   // 왼쪽 벽
+  { x1: 306, y1: 430, x2: 486, y2: 504 },  // 우하단
+  { x1: 358, y1: 265, x2: 408, y2: 312 }   // 가스레인지 (통과 불가)
 ];
 
 function isBlocked(x: number, y: number) {
@@ -114,23 +120,43 @@ function nearestWalkable(x: number, y: number) {
 }
 
 const IDLE_STEPS = [
-  { target: 'shelf', msg: '책장으로 이동 중...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'cushion', msg: '만화책 보러 가는 중...', hold: 3000, held: 'book', effect: 'none' },
-  { target: 'cushion', msg: '만화책 보는 중...', hold: 30000, held: 'book', effect: 'none' },
-  { target: 'bed', msg: '낮잠 자러 침대로 이동...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'bedSleep', msg: '침대에서 낮잠 자는 중...', hold: 180000, held: 'none', effect: 'none' },
-  { target: 'plant', msg: '물 주러 가야겠다', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'plant', msg: '칙칙~', hold: 5000, held: 'watering', effect: 'water' },
-  { target: 'desk', msg: '청소 상태 확인 중...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'shelf', msg: '책장 앞까지 이동 중...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'shelf', msg: '책장 먼지 털어주는 중...', hold: 30000, held: 'duster', effect: 'dust' },
-  { target: 'bed', msg: '이불 돌돌이 하러 가는 중...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'bed', msg: '이불 돌돌이 하는 중...', hold: 30000, held: 'roller', effect: 'none' },
-  { target: 'calendar', msg: '달력 보러 가는 중...', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'calendar', msg: '달력 확인 중...', hold: 8000, held: 'none', effect: 'none' },
-  { target: 'cart', msg: '장바구니 정리하러 가야지', hold: 3000, held: 'none', effect: 'none' },
-  { target: 'cart', msg: '장바구니 정리 중...', hold: 30000, held: 'none', effect: 'none' },
-  { target: 'center', msg: '', hold: 5000, held: 'none', effect: 'none' }
+  // 책장 → 만화책
+  { target: 'shelf', msg: '어디 보자... 읽을 거 뭐 있나', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'cushion', msg: '만화책 보러 가는 중~', hold: 3000, held: 'book', effect: 'none', doneMsg: '' },
+  { target: 'cushion', msg: '만화책 보는 중... 📖', hold: 30000, held: 'book', effect: 'none', doneMsg: '재밌었다! 다음 권도 궁금해~' },
+  // 침대 낮잠 (sleepPhase 시스템으로 관리)
+  { target: 'bed', msg: '하아~ 졸리다... 낮잠 자야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '', sleepStart: true },
+  { target: 'bedSleep', msg: '', hold: 180000, held: 'none', effect: 'none', doneMsg: '잘 잤다! 개운해~ 😊', sleepEnd: true },
+  // 식물 물주기
+  { target: 'plant', msg: '화분한테 가야겠다 🌱', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'plant', msg: '칙칙~ 💦', hold: 5000, held: 'watering', effect: 'water', doneMsg: '다 줬다! 쑥쑥 자라렴~' },
+  // 🎸 기타 연주
+  { target: 'guitar', msg: '기타 좀 쳐볼까~ 🎸', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'guitar', msg: '둥가둥가~ 🎶', hold: 20000, held: 'none', effect: 'none', doneMsg: '기분 좋다! 한 곡 완성~ 🎵' },
+  // 청소
+  { target: 'desk', msg: '청소 상태 확인해봐야지', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'shelf', msg: '책장 먼지 좀 털어야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'shelf', msg: '싹싹~ 먼지 털어주는 중 🧹', hold: 30000, held: 'duster', effect: 'dust', doneMsg: '깨끗해졌다! 뿌듯해~ ✨' },
+  // 🎨 캔버스 그림 그리기
+  { target: 'canvas', msg: '그림 좀 그려볼까 🎨', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'canvas', msg: '슥슥~ 그림 그리는 중 🖌️', hold: 25000, held: 'none', effect: 'none', doneMsg: '완성! ...나 천재인 듯? 😎' },
+  // 이불 돌돌이
+  { target: 'bed', msg: '이불 정리해야지~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'bed', msg: '이불 돌돌이 중... 🧻', hold: 30000, held: 'roller', effect: 'none', doneMsg: '보송보송해졌다! 기분 좋아~' },
+  // 🍳 가스레인지 요리
+  { target: 'stove', msg: '뭔가 만들어 먹을까... 🤔', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'stove', msg: '지글지글~ 요리 중! 🍳', hold: 20000, held: 'none', effect: 'none', doneMsg: '맛있게 완성! 요리왕~ 🍲' },
+  // 달력
+  { target: 'calendar', msg: '달력 한번 볼까~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'calendar', msg: '일정 확인 중... 📅', hold: 8000, held: 'none', effect: 'none', doneMsg: '확인 완료! 다음 일정은... 음...' },
+  // 🎮 게임
+  { target: 'gamepad', msg: '게임 한 판 할까! 🎮', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'gamepad', msg: '집중... 게임 중! 🕹️', hold: 25000, held: 'none', effect: 'none', doneMsg: '이겼다!! 역시 나야~ 🏆' },
+  // 장바구니 정리
+  { target: 'cart', msg: '장바구니 좀 정리하자', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+  { target: 'cart', msg: '장바구니 정리 중... 🛒', hold: 30000, held: 'none', effect: 'none', doneMsg: '깔끔하게 정리 끝! 👍' },
+  // 센터 (쉬기)
+  { target: 'center', msg: '', hold: 5000, held: 'none', effect: 'none', doneMsg: '' }
 ] as const;
 
 export const usePetStore = create<State>((set) => ({
@@ -159,8 +185,12 @@ export const usePetStore = create<State>((set) => ({
   roomDark: false,
   dynamicCategories: [],
   currentCategory: '',
+  sleepPhase: 'none',
+  monologueEnabled: true,
 
   setDynamicCategories: (cats) => set({ dynamicCategories: cats }),
+
+  toggleMonologue: () => set((s) => ({ monologueEnabled: !s.monologueEnabled })),
 
   feed: () => set((s) => {
     const now = Date.now();
@@ -209,6 +239,10 @@ export const usePetStore = create<State>((set) => ({
   rest: () => set((s) => s),
 
   toggleRoomLight: () => set((s) => {
+    // 자고 있으면 창문 열고 닫아도 반응 안 함
+    if (s.sleepPhase === 'sleeping' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'settling') {
+      return {};
+    }
     const dark = !s.roomDark;
     const now = Date.now();
     return {
@@ -261,23 +295,65 @@ export const usePetStore = create<State>((set) => ({
     let effect: Effect = s.effect;
     let effectUntil = s.effectUntil;
     let statusText = s.statusText;
+    let sleepPhase: SleepPhase = s.sleepPhase;
 
     const isIdleTime = now - s.lastTaskAt > 18000;
     const isAtTarget = Math.hypot(s.targetX - s.petX, s.targetY - s.petY) < 5;
 
+    // 수면 단계 전환 처리 (도착했을 때)
+    if (sleepPhase === 'moving' && isAtTarget) {
+      // 침대에 도착함 → settling 단계 (회전 준비)
+      sleepPhase = 'settling';
+      idleAt = now;
+      statusText = '으으... 자리 잡는 중...';
+    } else if (sleepPhase === 'settling' && now - idleAt > 1500) {
+      // 1.5초 후 이불 덮기
+      sleepPhase = 'blanketed';
+      idleAt = now;
+      statusText = '이불 덮었다... 따뜻해... 😴';
+    } else if (sleepPhase === 'blanketed' && now - idleAt > 1500) {
+      // 1.5초 후 잠들기
+      sleepPhase = 'sleeping';
+      statusText = '💤';
+    } else if (sleepPhase === 'waking') {
+      sleepPhase = 'none';
+    }
+
     if (isIdleTime && isAtTarget && now - s.idleAt > IDLE_STEPS[s.idleStep].hold) {
+      // 완료 메시지 표시
+      const outgoingStep = IDLE_STEPS[idleStep];
+      const doneMsg = (outgoingStep as any).doneMsg;
+
+      // 잠에서 깨는 처리
+      if ((outgoingStep as any).sleepEnd && sleepPhase === 'sleeping') {
+        sleepPhase = 'waking';
+        statusText = doneMsg || '잘 잤다! 개운해~ 😊';
+      } else if (doneMsg) {
+        statusText = doneMsg;
+      }
+
       idleStep = (idleStep + 1) % IDLE_STEPS.length;
       idleAt = now;
       const step = IDLE_STEPS[idleStep];
       const p = TARGET[step.target];
-      const skipCollision = step.target === 'bedSleep' || step.target === 'shelf';
+      // 가구 위치에 직접 가야 하는 타겟은 충돌 검사 건너뛰기
+      const skipCollision = step.target === 'bedSleep' || step.target === 'shelf'
+        || step.target === 'bed' || step.target === 'stove'
+        || step.target === 'guitar' || step.target === 'canvas';
       const safe = skipCollision ? p : nearestWalkable(p.x, p.y);
       targetX = safe.x;
       targetY = safe.y;
       heldItem = step.held as HeldItem;
-      statusText = step.msg;
+      if (!doneMsg && !((outgoingStep as any).sleepEnd)) {
+        statusText = step.msg;
+      }
       effect = step.effect as Effect;
       effectUntil = step.effect === 'water' ? now + 4000 : step.effect === 'dust' ? now + 4000 : 0;
+
+      // 수면 시작 처리
+      if ((step as any).sleepStart) {
+        sleepPhase = 'moving';
+      }
 
       // center에 도착하면 idle 감정 말풍선 (가끔)
       if (step.target === 'center' && !step.msg) {
@@ -289,7 +365,7 @@ export const usePetStore = create<State>((set) => ({
     if (effect !== 'none' && now > effectUntil) effect = 'none';
     if (s.reactUntil > 0 && now > s.reactUntil) {
       statusText = '';
-      return { petX: s.petX, petY: s.petY, statusText: '', reactUntil: 0, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil };
+      return { petX: s.petX, petY: s.petY, statusText: '', reactUntil: 0, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, sleepPhase };
     }
 
     const speed = 2.8;
@@ -297,7 +373,7 @@ export const usePetStore = create<State>((set) => ({
     const dy = targetY - s.petY;
     const dist = Math.hypot(dx, dy);
     if (dist < 1) {
-      return { targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText };
+      return { targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText, sleepPhase };
     }
 
     const step = Math.min(speed, dist);
@@ -307,7 +383,10 @@ export const usePetStore = create<State>((set) => ({
     let nx = s.petX;
     let ny = s.petY;
 
-    const allowPassBlocked = statusText.includes('침대에서 낮잠') || statusText.includes('책장');
+    const isSleepMoving = sleepPhase === 'moving' || sleepPhase === 'settling' || sleepPhase === 'blanketed' || sleepPhase === 'sleeping';
+    // 타겟 자체가 블록 영역 안에 있으면 통과 허용 (가구로 이동 중)
+    const targetInBlocked = isBlocked(targetX, targetY);
+    const allowPassBlocked = isSleepMoving || targetInBlocked;
     const escapingBlockedZone = isBlocked(s.petX, s.petY);
     const blockedXY = (allowPassBlocked || escapingBlockedZone) ? false : isBlocked(candX, candY);
     const blockedX = (allowPassBlocked || escapingBlockedZone) ? false : isBlocked(candX, s.petY);
@@ -317,7 +396,7 @@ export const usePetStore = create<State>((set) => ({
     else if (!blockedX) nx = candX;
     else if (!blockedY) ny = candY;
 
-    return { petX: nx, petY: ny, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText };
+    return { petX: nx, petY: ny, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText, sleepPhase };
   }),
 
   reactPetClick: () => set((s) => {
@@ -343,7 +422,8 @@ export const usePetStore = create<State>((set) => ({
       idleAt: now,
       heldItem: 'none' as HeldItem,
       effect: 'none' as Effect,
-      effectUntil: 0
+      effectUntil: 0,
+      sleepPhase: 'none' as SleepPhase
     };
   }),
 
@@ -381,7 +461,8 @@ export const usePetStore = create<State>((set) => ({
       idleStep: 0,
       idleAt: Date.now(),
       lastTaskAt: Date.now(),
-      currentCategory: category
+      currentCategory: (status === 'done' || status === 'error') ? '' : category,
+      sleepPhase: 'none' as SleepPhase
     };
   })
 }));

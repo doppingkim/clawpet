@@ -127,16 +127,16 @@ curl -X POST http://localhost:8787/chat \
 |----------|------|---------------|
 | coding | 코딩 작업 | 노트북 |
 | shopping | 장바구니 정리 | 바구니 |
-| calendar | 일정 확인 | 달력 |
-| writing | 글쓰기 작업 | 책장 |
-| research | 자료 조사 | 책상 |
+| calendar | 일정/소통 | 달력 |
+| writing | 글쓰기 작업 | 노트와 연필 (방석 근처) |
+| research | 자료 조사 | 책장 |
 | music | 음악 | 기타 |
-| communication | 소통 | 노트북 |
+| communication | 소통 | 달력 |
 | gaming | 게임 | 게임패드 |
 | art | 미술/디자인 | 캔버스 |
-| cooking | 요리 | 스토브 |
-| finance | 재무 | 노트북 |
-| learning | 학습 | 노트 |
+| cooking | 요리 | 가스레인지 |
+| finance | 재무/경제 | 노트북 |
+| learning | 학습 | 책장 |
 
 ## 환경변수
 
