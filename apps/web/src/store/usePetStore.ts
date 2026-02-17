@@ -121,45 +121,76 @@ function nearestWalkable(x: number, y: number) {
   return { x: 260, y: 300 };
 }
 
-const IDLE_STEPS = [
-  // 책장 → 만화책
-  { target: 'shelf', msg: '어디 보자... 읽을 거 뭐 있나', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'cushion', msg: '만화책 보러 가는 중~', hold: 3000, held: 'book', effect: 'none', doneMsg: '' },
-  { target: 'cushion', msg: '만화책 보는 중... 📖', hold: 30000, held: 'book', effect: 'none', doneMsg: '재밌었다! 다음 권도 궁금해~' },
-  // 침대 낮잠 (sleepPhase 시스템으로 관리)
-  { target: 'bed', msg: '하아~ 졸리다... 낮잠 자야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '', sleepStart: true },
-  { target: 'bedSleep', msg: '', hold: 180000, held: 'none', effect: 'none', doneMsg: '잘 잤다! 개운해~ 😊', sleepEnd: true },
-  // 식물 물주기
-  { target: 'plant', msg: '화분한테 가야겠다 🌱', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'plant', msg: '칙칙~ 💦', hold: 5000, held: 'watering', effect: 'water', doneMsg: '다 줬다! 쑥쑥 자라렴~' },
-  // 🎸 기타 연주
-  { target: 'guitar', msg: '기타 좀 쳐볼까~ 🎸', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'guitar', msg: '둥가둥가~ 🎶', hold: 20000, held: 'none', effect: 'none', doneMsg: '기분 좋다! 한 곡 완성~ 🎵' },
-  // 청소
-  { target: 'desk', msg: '청소 상태 확인해봐야지', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'shelf', msg: '책장 먼지 좀 털어야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'shelf', msg: '싹싹~ 먼지 털어주는 중 🧹', hold: 30000, held: 'duster', effect: 'dust', doneMsg: '깨끗해졌다! 뿌듯해~ ✨' },
-  // 🎨 캔버스 그림 그리기
-  { target: 'canvas', msg: '그림 좀 그려볼까 🎨', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'canvas', msg: '슥슥~ 그림 그리는 중 🖌️', hold: 25000, held: 'none', effect: 'none', doneMsg: '완성! ...나 천재인 듯? 😎' },
-  // 이불 돌돌이
-  { target: 'bed', msg: '이불 정리해야지~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'bed', msg: '이불 돌돌이 중... 🧻', hold: 30000, held: 'roller', effect: 'none', doneMsg: '보송보송해졌다! 기분 좋아~' },
-  // 🍳 가스레인지 요리
-  { target: 'stove', msg: '뭔가 만들어 먹을까... 🤔', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'stove', msg: '지글지글~ 요리 중! 🍳', hold: 20000, held: 'none', effect: 'none', doneMsg: '맛있게 완성! 요리왕~ 🍲' },
-  // 달력
-  { target: 'calendar', msg: '달력 한번 볼까~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'calendar', msg: '일정 확인 중... 📅', hold: 8000, held: 'none', effect: 'none', doneMsg: '확인 완료! 다음 일정은... 음...' },
-  // 🎮 게임
-  { target: 'gamepad', msg: '게임 한 판 할까! 🎮', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'gamepad', msg: '집중... 게임 중! 🕹️', hold: 25000, held: 'none', effect: 'none', doneMsg: '이겼다!! 역시 나야~ 🏆' },
-  // 장바구니 정리
-  { target: 'cart', msg: '장바구니 좀 정리하자', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
-  { target: 'cart', msg: '장바구니 정리 중... 🛒', hold: 30000, held: 'none', effect: 'none', doneMsg: '깔끔하게 정리 끝! 👍' },
-  // 센터 (쉬기)
-  { target: 'center', msg: '', hold: 5000, held: 'none', effect: 'none', doneMsg: '' }
-] as const;
+// 유휴 루틴: 각 루틴은 여러 스텝 묶음 (이동→준비→수행)
+type IdleStep = { target: string; msg: string; hold: number; held: string; effect: string; doneMsg: string; sleepStart?: boolean; sleepEnd?: boolean };
+type IdleRoutine = IdleStep[];
+
+const IDLE_ROUTINES: IdleRoutine[] = [
+  [ // 만화책
+    { target: 'shelf', msg: '어디 보자... 읽을 거 뭐 있나', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'cushion', msg: '만화책 보러 가는 중~', hold: 3000, held: 'book', effect: 'none', doneMsg: '' },
+    { target: 'cushion', msg: '만화책 보는 중... 📖', hold: 30000, held: 'book', effect: 'none', doneMsg: '재밌었다! 다음 권도 궁금해~' },
+  ],
+  [ // 낮잠
+    { target: 'bed', msg: '하아~ 졸리다... 낮잠 자야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '', sleepStart: true },
+    { target: 'bedSleep', msg: '', hold: 180000, held: 'none', effect: 'none', doneMsg: '잘 잤다! 개운해~ 😊', sleepEnd: true },
+  ],
+  [ // 물주기
+    { target: 'plant', msg: '화분한테 가야겠다 🌱', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'plant', msg: '칙칙~ 💦', hold: 5000, held: 'watering', effect: 'water', doneMsg: '다 줬다! 쑥쑥 자라렴~' },
+  ],
+  [ // 기타
+    { target: 'guitar', msg: '기타 좀 쳐볼까~ 🎸', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'guitar', msg: '둥가둥가~ 🎶', hold: 20000, held: 'none', effect: 'none', doneMsg: '기분 좋다! 한 곡 완성~ 🎵' },
+  ],
+  [ // 책장 먼지 털기
+    { target: 'desk', msg: '청소 상태 확인해봐야지', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'shelf', msg: '책장 먼지 좀 털어야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'shelf', msg: '싹싹~ 먼지 털어주는 중 🧹', hold: 30000, held: 'duster', effect: 'dust', doneMsg: '깨끗해졌다! 뿌듯해~ ✨' },
+  ],
+  [ // 그림 그리기
+    { target: 'canvas', msg: '그림 좀 그려볼까 🎨', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'canvas', msg: '슥슥~ 그림 그리는 중 🖌️', hold: 25000, held: 'none', effect: 'none', doneMsg: '완성! ...나 천재인 듯? 😎' },
+  ],
+  [ // 이불 돌돌이
+    { target: 'bed', msg: '이불 정리해야지~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'bed', msg: '이불 돌돌이 중... 🧻', hold: 30000, held: 'roller', effect: 'none', doneMsg: '보송보송해졌다! 기분 좋아~' },
+  ],
+  [ // 요리
+    { target: 'stove', msg: '뭔가 만들어 먹을까... 🤔', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'stove', msg: '지글지글~ 요리 중! 🍳', hold: 20000, held: 'none', effect: 'none', doneMsg: '맛있게 완성! 요리왕~ 🍲' },
+  ],
+  [ // 달력
+    { target: 'calendar', msg: '달력 한번 볼까~', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'calendar', msg: '일정 확인 중... 📅', hold: 8000, held: 'none', effect: 'none', doneMsg: '확인 완료! 다음 일정은... 음...' },
+  ],
+  [ // 게임
+    { target: 'gamepad', msg: '게임 한 판 할까! 🎮', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'gamepad', msg: '집중... 게임 중! 🕹️', hold: 25000, held: 'none', effect: 'none', doneMsg: '이겼다!! 역시 나야~ 🏆' },
+  ],
+  [ // 장바구니
+    { target: 'cart', msg: '장바구니 좀 정리하자', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'cart', msg: '장바구니 정리 중... 🛒', hold: 30000, held: 'none', effect: 'none', doneMsg: '깔끔하게 정리 끝! 👍' },
+  ],
+  [ // 노트북 정리
+    { target: 'laptop', msg: '노트북 좀 닦아야겠다', hold: 3000, held: 'none', effect: 'none', doneMsg: '' },
+    { target: 'laptop', msg: '닦닦~ 키보드 청소 중 ⌨️', hold: 15000, held: 'duster', effect: 'dust', doneMsg: '반짝반짝! 깨끗해졌다~ ✨' },
+  ],
+];
+
+// 루틴을 랜덤 셔플 → 플랫 스텝 배열 (루틴 사이에 센터 쉬기 삽입)
+function buildShuffledSteps(): IdleStep[] {
+  const shuffled = [...IDLE_ROUTINES].sort(() => Math.random() - 0.5);
+  const steps: IdleStep[] = [];
+  const rest: IdleStep = { target: 'center', msg: '', hold: 5000, held: 'none', effect: 'none', doneMsg: '' };
+  for (const routine of shuffled) {
+    steps.push(...routine);
+    steps.push(rest);
+  }
+  return steps;
+}
+
+let IDLE_STEPS: IdleStep[] = buildShuffledSteps();
 
 export const usePetStore = create<State>((set) => ({
   hunger: 22,
@@ -197,6 +228,10 @@ export const usePetStore = create<State>((set) => ({
 
   feed: () => set((s) => {
     const now = Date.now();
+    // 수면 중에는 밥 못 먹음
+    if (s.sleepPhase === 'settling' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'sleeping') {
+      return { statusText: '쿨쿨... 💤', reactUntil: now + 1500 };
+    }
     const expired = now - s.feedResetAt > 10 * 60 * 1000;
     const count = expired ? 0 : s.feedCount;
     if (count >= 2) return { statusText: '한번에 다 못먹어요!', reactUntil: now + 2000, lastTaskAt: now, lastInteractAt: now, feedCount: count, feedResetAt: expired ? now : s.feedResetAt };
@@ -207,18 +242,23 @@ export const usePetStore = create<State>((set) => ({
       reactUntil: now + 2500,
       lastTaskAt: now,
       lastInteractAt: now,
-      idleStep: 0,
+      idleStep: (IDLE_STEPS = buildShuffledSteps(), 0),
       idleAt: now,
       heldItem: 'none' as HeldItem,
       effect: 'none' as Effect,
       effectUntil: 0,
       feedCount: count + 1,
-      feedResetAt: expired ? now : s.feedResetAt
+      feedResetAt: expired ? now : s.feedResetAt,
+      sleepPhase: 'none' as SleepPhase
     };
   }),
 
   pet: () => set((s) => {
     const now = Date.now();
+    // 수면 중에는 쓰다듬기 불가
+    if (s.sleepPhase === 'settling' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'sleeping') {
+      return { statusText: '쿨쿨... 💤', reactUntil: now + 1500 };
+    }
     const expired = now - s.petResetAt > 10 * 60 * 1000;
     const count = expired ? 0 : s.petCount;
     if (count >= 3) return { statusText: '너무 많이 쓰다듬는 거아니에요?', reactUntil: now + 2000, lastTaskAt: now, lastInteractAt: now, petCount: count, petResetAt: expired ? now : s.petResetAt };
@@ -229,13 +269,14 @@ export const usePetStore = create<State>((set) => ({
       reactUntil: now + 2500,
       lastTaskAt: now,
       lastInteractAt: now,
-      idleStep: 0,
+      idleStep: (IDLE_STEPS = buildShuffledSteps(), 0),
       idleAt: now,
       heldItem: 'none' as HeldItem,
       effect: 'none' as Effect,
       effectUntil: 0,
       petCount: count + 1,
-      petResetAt: expired ? now : s.petResetAt
+      petResetAt: expired ? now : s.petResetAt,
+      sleepPhase: 'none' as SleepPhase
     };
   }),
 
@@ -342,10 +383,22 @@ export const usePetStore = create<State>((set) => ({
         sleepPhase = 'waking';
         statusText = doneMsg || '잘 잤다! 개운해~ 😊';
       } else if (doneMsg) {
-        statusText = doneMsg;
+        // doneMsg가 있으면 2초간 표시 후 다음 step으로 (즉시 덮어쓰기 방지)
+        return {
+          statusText: doneMsg,
+          reactUntil: now + 2000,
+          idleAt: now,
+          idleStep, targetX, targetY, heldItem, effect, effectUntil, sleepPhase,
+          petX: s.petX, petY: s.petY
+        };
       }
 
-      idleStep = (idleStep + 1) % IDLE_STEPS.length;
+      idleStep = idleStep + 1;
+      // 한 사이클 완료 → 다시 셔플
+      if (idleStep >= IDLE_STEPS.length) {
+        IDLE_STEPS = buildShuffledSteps();
+        idleStep = 0;
+      }
       idleAt = now;
       const step = IDLE_STEPS[idleStep];
       const p = TARGET[step.target];
@@ -413,6 +466,10 @@ export const usePetStore = create<State>((set) => ({
   }),
 
   reactPetClick: () => set((s) => {
+    // 수면 중에는 클릭 무시
+    if (s.sleepPhase === 'settling' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'sleeping') {
+      return {};
+    }
     const now = Date.now();
     const msgs = ['왜요?', '뭐? 🤨', '부르셨나요?', '헤?'];
     return {
@@ -424,14 +481,22 @@ export const usePetStore = create<State>((set) => ({
     };
   }),
 
-  say: (text, durationMs = 2000) => set(() => {
+  say: (text, durationMs = 2000) => set((s) => {
     const now = Date.now();
+    // 수면 중이면 잠을 깨우지 않음 — 말풍선만 표시
+    const isSleeping = s.sleepPhase === 'settling' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'sleeping';
+    if (isSleeping) {
+      return {
+        statusText: (text || '').slice(0, 100),
+        reactUntil: now + durationMs
+      };
+    }
     return {
       statusText: (text || '').slice(0, 100),
       reactUntil: now + durationMs,
       lastTaskAt: now,
       lastInteractAt: now,
-      idleStep: 0,
+      idleStep: (IDLE_STEPS = buildShuffledSteps(), 0),
       idleAt: now,
       heldItem: 'none' as HeldItem,
       effect: 'none' as Effect,
@@ -477,7 +542,7 @@ export const usePetStore = create<State>((set) => ({
       effect: 'none',
       effectUntil: 0,
       reactUntil: isDone ? Date.now() + 4000 : 0,  // done 말풍선 4초 표시
-      idleStep: 0,
+      idleStep: (IDLE_STEPS = buildShuffledSteps(), 0),
       idleAt: Date.now(),
       lastTaskAt: Date.now(),
       currentCategory: isDone ? '' : category,
