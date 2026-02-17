@@ -10,7 +10,19 @@ type BroadcastFn = (payload: unknown) => void;
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let retryCount = 0;
-const MAX_RETRIES = 3;
+let connected = false;
+
+// 디버그용 상태
+export function getGatewayStatus() {
+    return {
+        connected,
+        retryCount,
+        wsState: ws?.readyState ?? -1,
+        currentRunId,
+        broadcastedCategory,
+        pendingTextLength: pendingText.length,
+    };
+}
 
 export function connectToGateway(
     port: number,
@@ -22,7 +34,7 @@ export function connectToGateway(
     }
 
     const url = `ws://127.0.0.1:${port}`;
-    console.log('[gateway-ws] connecting to', url);
+    console.log('[gateway-ws] connecting to', url, '(attempt %d)', retryCount + 1);
 
     try {
         ws = new WebSocket(url, {
@@ -40,7 +52,6 @@ export function connectToGateway(
         console.log('[gateway-ws] connected, waiting for challenge...');
     });
 
-    // 먼저 challenge를 받고 나서 connect 보내기
     const sendConnect = () => {
         const connectFrame = {
             type: 'req',
@@ -76,7 +87,7 @@ export function connectToGateway(
         console.log('[gateway-ws] sent connect request');
     };
 
-    // challenge 없이도 2초 후 connect 시도 (로컬이면 challenge 안 올 수 있음)
+    // challenge 없이도 2초 후 connect 시도
     const fallbackTimer = setTimeout(() => {
         if (ws?.readyState === 1) sendConnect();
     }, 2000);
@@ -102,6 +113,7 @@ export function connectToGateway(
     ws.on('close', (code: number) => {
         console.log('[gateway-ws] disconnected, code:', code);
         ws = null;
+        connected = false;
         clearTimeout(fallbackTimer);
         scheduleReconnect(port, token, broadcast);
     });
@@ -114,26 +126,25 @@ export function connectToGateway(
 function scheduleReconnect(port: number, token: string, broadcast: BroadcastFn) {
     if (reconnectTimer) return;
     retryCount++;
-    if (retryCount > MAX_RETRIES) {
-        console.warn('[gateway-ws] max retries reached. Gateway WS disabled. /emit API still works for events.');
-        return;
-    }
-    console.log('[gateway-ws] will reconnect in 10s... (attempt %d/%d)', retryCount, MAX_RETRIES);
+    // 무한 재시도 — 점진적 백오프 (최대 60초)
+    const delay = Math.min(retryCount * 5000, 60000);
+    console.log('[gateway-ws] will reconnect in %ds... (attempt %d)', delay / 1000, retryCount);
     reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
         connectToGateway(port, token, broadcast);
-    }, 10000);
+    }, delay);
 }
 
 function handleGatewayMessage(msg: any, broadcast: BroadcastFn) {
     // hello-ok 응답
     if (msg.type === 'res' && msg.ok && msg.payload?.type === 'hello-ok') {
         console.log('[gateway-ws] handshake OK, protocol:', msg.payload.protocol);
-        retryCount = 0; // 성공 시 리셋
+        retryCount = 0;
+        connected = true;
         return;
     }
 
-    // agent 이벤트 — 핵심!
+    // agent 이벤트
     if (msg.type === 'event' && msg.event === 'agent') {
         handleAgentEvent(msg.payload, broadcast);
         return;
@@ -141,15 +152,20 @@ function handleGatewayMessage(msg: any, broadcast: BroadcastFn) {
 
     // res 에러
     if (msg.type === 'res' && !msg.ok) {
-        console.warn('[gateway-ws] error response:', msg.error);
+        console.warn('[gateway-ws] error response:', JSON.stringify(msg.error || msg).slice(0, 300));
         return;
+    }
+
+    // 기타 이벤트 로깅 (디버그용)
+    if (msg.type === 'event' && msg.event !== 'connect.challenge') {
+        console.log('[gateway-ws] event: %s', msg.event);
     }
 }
 
 // 스트리밍 상태 추적
 let pendingText = '';
 let currentRunId = '';
-let broadcastedCategory = '';  // 이미 브로드캐스트한 카테고리
+let broadcastedCategory = '';
 
 function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
     if (!payload) return;
@@ -195,9 +211,19 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
         return;
     }
 
+    // tool 이벤트 — 도구명에서도 카테고리 힌트 수집
+    if (stream === 'tool') {
+        const toolName = (data.name as string) || '';
+        if (toolName) {
+            pendingText += ` [tool:${toolName}]`;
+        }
+        return;
+    }
+
     // assistant 스트리밍: 텍스트 누적, 카테고리가 바뀔 때만 1회 브로드캐스트
     if (stream === 'assistant') {
-        pendingText = (data.text as string) || pendingText;
+        const newText = (data.text as string) || '';
+        if (newText) pendingText = newText;
 
         const matched = analyzeCategory(pendingText);
         const category = matched?.id || 'other';
@@ -205,7 +231,7 @@ function handleAgentEvent(payload: any, broadcast: BroadcastFn) {
         // 카테고리가 처음 확정됐을 때만 (other → 구체적 카테고리) 1번 브로드캐스트
         if (category !== 'other' && category !== broadcastedCategory) {
             broadcastedCategory = category;
-            console.log('[gateway-ws] category detected: %s', category);
+            console.log('[gateway-ws] category detected: %s (from %d chars)', category, pendingText.length);
             broadcast({
                 id: Date.now().toString(),
                 ts: Date.now(),

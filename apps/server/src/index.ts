@@ -5,7 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { loadCategories, getCategories, analyzeCategory } from './categories.js';
-import { connectToGateway } from './gateway-listener.js';
+import { connectToGateway, getGatewayStatus } from './gateway-listener.js';
 // [disabled] 방 성장 시스템 — 추후 재활성화 예정
 // import { loadTaskHistory, recordTask, checkUpgrades, getRoomUpgrades } from './room-growth.js';
 
@@ -53,10 +53,10 @@ app.get('/categories', (_req, res) => {
   res.json({ categories: getCategories() });
 });
 
-// [disabled] 방 업그레이드 API — 추후 재활성화 예정
-// app.get('/upgrades', (_req: any, res: any) => {
-//   res.json({ upgrades: getRoomUpgrades() });
-// });
+// 디버그: Gateway 연결 상태 확인
+app.get('/debug/gateway', (_req: any, res: any) => {
+  res.json(getGatewayStatus());
+});
 
 const server = app.listen(8787, () => {
   console.log('ClawGotchi server on http://localhost:8787');
