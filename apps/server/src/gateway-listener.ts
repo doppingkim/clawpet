@@ -203,58 +203,119 @@ export function getCurrentTaskState() {
 }
 
 /**
- * Gateway HTTP API로 현재 활성 세션을 확인.
+ * Gateway WS를 통해 현재 활성 세션을 확인.
  * WS 이벤트를 놓친 경우(서버가 나중에 시작됨) 보정용.
  */
-async function probeActiveSession(broadcast: BroadcastFn) {
+function probeActiveSession(broadcast: BroadcastFn) {
+    if (!ws || ws.readyState !== 1) return;
+
+    // WS 프로토콜로 sessions.list 요청
+    const probeId = `probe-${Date.now()}`;
+    const probeFrame = {
+        type: 'req',
+        id: probeId,
+        method: 'sessions.list',
+        params: {}
+    };
+
+    // 응답 핸들러 (일회성)
+    const handler = (data: any) => {
+        try {
+            const msg = JSON.parse(data.toString());
+            if (msg.id !== probeId) return; // 다른 응답 무시
+
+            ws?.off('message', handler);
+            console.log('[gateway-probe] response:', JSON.stringify(msg).slice(0, 500));
+
+            if (!msg.ok) {
+                console.log('[gateway-probe] sessions.list not supported, trying fallback');
+                probeFallback(broadcast);
+                return;
+            }
+
+            // 세션 목록에서 busy인 것 찾기
+            const payload = msg.payload || msg.result || {};
+            const sessions = payload.sessions || payload.data || (Array.isArray(payload) ? payload : []);
+            const active = sessions.find((s: any) =>
+                s.status === 'busy' || s.status === 'active' || s.status === 'running' || s.busy === true
+            );
+
+            if (active) {
+                console.log('[gateway-probe] found active session:', JSON.stringify(active).slice(0, 200));
+                currentPhase = 'working';
+                broadcast({
+                    id: Date.now().toString(),
+                    ts: Date.now(),
+                    category: 'other',
+                    status: 'working',
+                    summary: ''
+                });
+            } else {
+                console.log('[gateway-probe] no active session (count=%d)', sessions.length);
+            }
+        } catch { /* noop */ }
+    };
+
+    ws.on('message', handler);
+    ws.send(JSON.stringify(probeFrame));
+    console.log('[gateway-probe] sent sessions.list request');
+
+    // 3초 타임아웃 후 핸들러 정리
+    setTimeout(() => {
+        ws?.off('message', handler);
+    }, 3000);
+}
+
+/**
+ * sessions.list가 안 되면 sessions_send로 간접 확인
+ */
+async function probeFallback(broadcast: BroadcastFn) {
     if (!gatewayPort || !gatewayToken) return;
     const url = `http://127.0.0.1:${gatewayPort}`;
 
     try {
-        // 세션 목록 조회
+        // 매우 짧은 타임아웃(2초)으로 세션에 ping
         const r = await fetch(`${url}/tools/invoke`, {
             method: 'POST',
             headers: {
                 'content-type': 'application/json',
                 authorization: `Bearer ${gatewayToken}`
             },
-            body: JSON.stringify({ tool: 'sessions_list', args: {} })
+            body: JSON.stringify({
+                tool: 'sessions_send',
+                args: {
+                    sessionKey: 'agent:main:main',
+                    message: '[[ping]]',
+                    timeoutSeconds: 2
+                }
+            })
         });
-        if (!r.ok) {
-            console.log('[gateway-probe] sessions_list HTTP %d', r.status);
-            return;
-        }
+
         const data: any = await r.json();
-        console.log('[gateway-probe] sessions_list:', JSON.stringify(data).slice(0, 500));
+        console.log('[gateway-probe-fallback] response:', JSON.stringify(data).slice(0, 300));
 
-        // 활성 세션이 있으면 working 상태로 설정
-        const sessions = data?.result?.content?.[0]?.text || data?.result || '';
-        let parsed: any = sessions;
-        if (typeof sessions === 'string') {
-            try { parsed = JSON.parse(sessions); } catch { /* noop */ }
-        }
+        // 타임아웃이면 에이전트가 바쁨 = 작업 중
+        const contentText = data?.result?.content?.[0]?.text || '';
+        let status = '';
+        try { status = JSON.parse(contentText)?.status || ''; } catch { /* noop */ }
+        const detailsStatus = data?.result?.details?.status || '';
+        const finalStatus = status || detailsStatus;
 
-        // sessions 배열에서 busy/active 상태인 것 찾기
-        const list = Array.isArray(parsed) ? parsed : (parsed?.sessions || parsed?.data || []);
-        const active = list.find((s: any) =>
-            s.status === 'busy' || s.status === 'active' || s.status === 'running' || s.busy === true
-        );
-
-        if (active) {
-            console.log('[gateway-probe] found active session: %s', JSON.stringify(active).slice(0, 200));
+        if (finalStatus === 'timeout' || finalStatus === 'busy') {
+            console.log('[gateway-probe-fallback] agent is busy → set working');
             currentPhase = 'working';
             broadcast({
                 id: Date.now().toString(),
                 ts: Date.now(),
                 category: 'other',
                 status: 'working',
-                summary: active.task?.slice?.(0, 100) || active.summary?.slice?.(0, 100) || ''
+                summary: ''
             });
         } else {
-            console.log('[gateway-probe] no active session found (count=%d)', list.length);
+            console.log('[gateway-probe-fallback] agent responded → idle (status=%s)', finalStatus);
         }
     } catch (err) {
-        console.warn('[gateway-probe] failed:', (err as Error).message);
+        console.warn('[gateway-probe-fallback] failed:', (err as Error).message);
     }
 }
 
