@@ -88,7 +88,8 @@ const builtInCategoryTarget: Record<string, string> = {
   gaming: 'gamepad',
   learning: 'shelf',
   communication: 'calendar',
-  finance: 'laptop'
+  finance: 'laptop',
+  other: 'laptop'
 };
 
 const BLOCKS = [

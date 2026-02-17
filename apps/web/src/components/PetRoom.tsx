@@ -18,6 +18,8 @@ export function PetRoom() {
   const jumpUntil = usePetStore((s) => s.jumpUntil);
   const statusText = usePetStore((s) => s.statusText);
   const roomDark = usePetStore((s) => s.roomDark);
+  const sleepPhase = usePetStore((s) => s.sleepPhase);
+  const currentCategory = usePetStore((s) => s.currentCategory);
   const reactPetClick = usePetStore((s) => s.reactPetClick);
   const toggleRoomLight = usePetStore((s) => s.toggleRoomLight);
 
@@ -80,7 +82,8 @@ export function PetRoom() {
       ctx.clearRect(0, 0, ROOM, ROOM);
 
       const atLaptop = Math.hypot(petX - 190, petY - 344) < 24;
-      const laptopActive = statusText.includes('코딩 작업') && atLaptop;
+      const laptopCategories = ['coding', 'finance', 'other'];
+      const laptopActive = laptopCategories.includes(currentCategory) && atLaptop;
       if (roomDark && roomDarkImg.complete) ctx.drawImage(roomDarkImg, 0, 0, ROOM, ROOM);
       else if (laptopActive && roomOnImg.complete) ctx.drawImage(roomOnImg, 0, 0, ROOM, ROOM);
       else if (roomImg.complete) ctx.drawImage(roomImg, 0, 0, ROOM, ROOM);
@@ -121,7 +124,8 @@ export function PetRoom() {
         const drawY = Math.round(petY - drawH / 2 - jumpOffset);
 
         const atBed = Math.hypot(petX - 140, petY - 110) < 30;
-        const isSleeping = statusText.includes('침대에서 낮잠') && atBed;
+        const isSleeping = (sleepPhase === 'settling' || sleepPhase === 'blanketed' || sleepPhase === 'sleeping') && atBed;
+        const showBlanket = (sleepPhase === 'blanketed' || sleepPhase === 'sleeping') && atBed;
 
         if (isSleeping) {
           // 침대에서 낮잠: 90도 반시계 회전 (눕는 포즈)
@@ -132,28 +136,32 @@ export function PetRoom() {
           ctx.rotate(-Math.PI / 2);
           ctx.translate(-cx, -cy);
           ctx.drawImage(pix, 0, 0, 24, 24, drawX, drawY, drawW, drawH);
-          // 이불 (회전 상태로 같이 그려짐)
-          ctx.fillStyle = '#d6d1c3';
-          ctx.fillRect(drawX + 10, drawY + 30, 54, 28);
-          ctx.fillStyle = '#9eb3bf';
-          ctx.fillRect(drawX + 18, drawY + 36, 12, 10);
-          ctx.fillRect(drawX + 36, drawY + 40, 12, 10);
-          ctx.strokeStyle = '#4d5f6d';
-          ctx.strokeRect(drawX + 10, drawY + 30, 54, 28);
+          // 이불 (회전 상태로 같이 그려짐) — blanketed 이후에만
+          if (showBlanket) {
+            ctx.fillStyle = '#d6d1c3';
+            ctx.fillRect(drawX + 10, drawY + 30, 54, 28);
+            ctx.fillStyle = '#9eb3bf';
+            ctx.fillRect(drawX + 18, drawY + 36, 12, 10);
+            ctx.fillRect(drawX + 36, drawY + 40, 12, 10);
+            ctx.strokeStyle = '#4d5f6d';
+            ctx.strokeRect(drawX + 10, drawY + 30, 54, 28);
+          }
           ctx.restore();
 
-          // Zzz 이펙트 (회전 없이 위에)
-          const zzz = ['Z', 'z', 'Z'];
-          ctx.fillStyle = '#8090a0';
-          ctx.font = '10px "Press Start 2P", monospace';
-          const t = Date.now() / 800;
-          zzz.forEach((c, i) => {
-            const ox = petX + 20 + i * 8;
-            const oy = petY - 30 - i * 10 + Math.sin(t + i) * 3;
-            ctx.globalAlpha = 0.4 + i * 0.2;
-            ctx.fillText(c, ox, oy);
-          });
-          ctx.globalAlpha = 1;
+          // Zzz 이펙트 — sleeping 단계에서만
+          if (sleepPhase === 'sleeping') {
+            const zzz = ['Z', 'z', 'Z'];
+            ctx.fillStyle = '#8090a0';
+            ctx.font = '10px "Press Start 2P", monospace';
+            const t = Date.now() / 800;
+            zzz.forEach((c, i) => {
+              const ox = petX + 20 + i * 8;
+              const oy = petY - 30 - i * 10 + Math.sin(t + i) * 3;
+              ctx.globalAlpha = 0.4 + i * 0.2;
+              ctx.fillText(c, ox, oy);
+            });
+            ctx.globalAlpha = 1;
+          }
         } else {
           // 일반 상태: 비회전 캐릭터
           ctx.drawImage(pix, 0, 0, 24, 24, drawX, drawY, drawW, drawH);
@@ -215,7 +223,7 @@ export function PetRoom() {
 
     raf = requestAnimationFrame(render);
     return () => cancelAnimationFrame(raf);
-  }, [petX, petY, targetX, targetY, heldItem, effect, jumpUntil, statusText, roomDark]);
+  }, [petX, petY, targetX, targetY, heldItem, effect, jumpUntil, statusText, roomDark, sleepPhase, currentCategory]);
 
   return <canvas ref={canvasRef} className="roomCanvas" width={ROOM} height={ROOM} />;
 }
