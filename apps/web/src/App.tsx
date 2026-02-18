@@ -15,6 +15,9 @@ export function App() {
   const [audioReady, setAudioReady] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
+  const [chatMode, setChatMode] = useState<'short' | 'long'>('short');
+  const [longReply, setLongReply] = useState<{ preview: string; full: string } | null>(null);
+  const [longReplyOpen, setLongReplyOpen] = useState(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const bgmTimerRef = useRef<number | null>(null);
   const lastStatusRef = useRef('');
@@ -48,6 +51,7 @@ export function App() {
       const tag = (document.activeElement as HTMLElement | null)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       e.preventDefault();
+      setChatMode('short');
       setChatOpen(true);
     };
     window.addEventListener('keydown', onKey);
@@ -63,6 +67,7 @@ export function App() {
     const id = setInterval(() => tickMove(), 50);
     return () => clearInterval(id);
   }, [tickMove]);
+
 
   const satiety = Math.max(0, Math.min(100, Math.round(100 - hunger)));
   const love = Math.max(0, Math.min(100, Math.round(affection)));
@@ -301,20 +306,40 @@ export function App() {
   }, [muted, audioReady]);
 
   const sendChat = async () => {
-    const text = chatText.trim().slice(0, 100);
+    const limit = chatMode === 'short' ? 100 : 4000;
+    const text = chatText.trim().slice(0, limit);
     if (!text) return;
+    const isLong = chatMode === 'long';
+
     say('생각중이에요...', 65000);
     setChatText('');
     setChatOpen(false);
+    setChatMode('short');
+    setLongReply(null);
+    setLongReplyOpen(false);
+
     try {
       const r = await fetch('http://localhost:8787/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text, longMode: isLong })
       });
       const d = await r.json();
-      say((d?.reply || '네!').slice(0, 100), 4000);
+      const reply = String(d?.reply || '네!');
+
+      if (isLong && reply.length > 90) {
+        const preview = `${reply.slice(0, 90)}...`;
+        setLongReply({ preview, full: reply });
+        setLongReplyOpen(false);
+        say(preview, 12000);
+      } else {
+        setLongReply(null);
+        setLongReplyOpen(false);
+        say(isLong ? reply : reply.slice(0, 100), isLong ? 9000 : 4000);
+      }
     } catch {
+      setLongReply(null);
+      setLongReplyOpen(false);
       say('네! 들었어요.', 2000);
     }
   };
@@ -349,7 +374,28 @@ export function App() {
 
         {bubble && (
           <div className={`petBubble${currentCategory ? ' petBubble--task' : ''}`} style={{ left: petX, top: Math.max(18, petY - 38) }}>
-            {bubble}
+            <span className="petBubbleText">{bubble}</span>
+            {longReply && bubble === longReply.preview && (
+              <button
+                className="petBubbleMore"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLongReplyOpen(true);
+                }}
+              >
+                더보기
+              </button>
+            )}
+          </div>
+        )}
+
+        {longReply && longReplyOpen && (
+          <div className="longReplyOverlay" onClick={() => setLongReplyOpen(false)}>
+            <div className="longReplyPaper" onClick={(e) => e.stopPropagation()}>
+              <button className="longReplyClose" onClick={() => setLongReplyOpen(false)}>닫기</button>
+              <h3>긴 응답</h3>
+              <pre>{longReply.full}</pre>
+            </div>
           </div>
         )}
 
@@ -377,23 +423,63 @@ export function App() {
         <div className="hudActions" onClick={(e) => e.stopPropagation()}>
           <button className="pixelBtn" onClick={feed} title="밥주기">🍙</button>
           <button className="pixelBtn" onClick={pet} title="쓰다듬기">🤲</button>
-          <button className="pixelBtn" onClick={() => setChatOpen((v) => !v)} title="대화하기">/</button>
+          <button
+            className="pixelBtn"
+            onClick={() => {
+              setChatMode('short');
+              setChatOpen((v) => !v);
+            }}
+            title="대화하기"
+          >
+            /
+          </button>
         </div>
 
         {chatOpen && (
-          <div className="chatBox" onClick={(e) => e.stopPropagation()}>
-            <input
-              autoFocus
-              value={chatText}
-              maxLength={100}
-              onChange={(e) => setChatText(e.target.value.slice(0, 100))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') sendChat();
-                if (e.key === 'Escape') setChatOpen(false);
+          <div className={`chatBox${chatMode === 'long' ? ' chatBox--long' : ''}`} onClick={(e) => e.stopPropagation()}>
+            {chatMode === 'short' ? (
+              <input
+                autoFocus
+                value={chatText}
+                maxLength={100}
+                onChange={(e) => setChatText(e.target.value.slice(0, 100))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') sendChat();
+                  if (e.key === 'Escape') setChatOpen(false);
+                }}
+                placeholder="100자 이내"
+              />
+            ) : (
+              <textarea
+                autoFocus
+                value={chatText}
+                maxLength={4000}
+                onChange={(e) => setChatText(e.target.value.slice(0, 4000))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendChat();
+                  }
+                  if (e.key === 'Escape') setChatOpen(false);
+                }}
+                placeholder="LONG 모드: 길게 입력 (Shift+Enter 줄바꿈)"
+              />
+            )}
+            <button
+              className="chatModeToggle"
+              onClick={() => {
+                setChatMode((prev) => {
+                  const next = prev === 'short' ? 'long' : 'short';
+                  if (next === 'short') {
+                    setChatText((t) => t.slice(0, 100));
+                  }
+                  return next;
+                });
               }}
-              placeholder="100자 이내"
-            />
-            <span>{chatText.length}/100</span>
+              title={chatMode === 'short' ? 'LONG 모드 전환' : '기본 100자 모드 전환'}
+            >
+              {chatMode === 'short' ? `${chatText.length}/100` : 'LONG'}
+            </button>
           </div>
         )}
       </section>

@@ -589,27 +589,11 @@ export const usePetStore = create<State>((set) => ({
     };
   }),
 
-  say: (text, durationMs = 2000) => set((s) => {
-    const now = Date.now();
-    // 수면 중이면 잠을 깨우지 않음 — 말풍선만 표시
-    const isSleeping = s.sleepPhase === 'settling' || s.sleepPhase === 'blanketed' || s.sleepPhase === 'sleeping';
-    if (isSleeping) {
-      return {
-        statusText: (text || '').slice(0, 100),
-        reactUntil: now + durationMs
-      };
-    }
+  say: (text, durationMs = 6000) => set(() => {
+    // 말풍선만 표시 — idle/작업 상태에 영향 없음
     return {
       statusText: (text || '').slice(0, 100),
-      reactUntil: now + durationMs,
-      lastTaskAt: now,
-      lastInteractAt: now,
-      idleStep: (IDLE_STEPS = buildShuffledSteps(), 0),
-      idleAt: now,
-      heldItem: 'none' as HeldItem,
-      effect: 'none' as Effect,
-      effectUntil: 0,
-      sleepPhase: 'none' as SleepPhase
+      reactUntil: Date.now() + durationMs
     };
   }),
 

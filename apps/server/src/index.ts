@@ -110,7 +110,7 @@ loadCategories();
 // Gateway WS 리스너 시작
 connectToGateway(gatewayConfig.port, gatewayConfig.token, broadcast);
 
-async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: string } | { ok: false; reason: string }> {
+async function sendToOpenClaw(message: string, longMode = false): Promise<{ ok: true; reply: string } | { ok: false; reason: string }> {
   const gatewayUrl = `http://127.0.0.1:${gatewayConfig.port}`;
   const token = gatewayConfig.token;
   const sessionKey = 'agent:main:main';
@@ -129,7 +129,9 @@ async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: strin
         tool: 'sessions_send',
         args: {
           sessionKey,
-          message: `[100자 이내로 한국어로 대답해줘] ${message}`,
+          message: longMode
+            ? `[한국어로 자연스럽게 대답해줘] ${message}`
+            : `[100자 이내로 한국어로 대답해줘] ${message}`,
           timeoutSeconds: 60
         }
       })
@@ -264,7 +266,9 @@ app.post('/monologue/trigger', (_req: any, res: any) => {
 });
 
 app.post('/chat', async (req, res) => {
-  const msg = String(req.body?.message || '').trim().slice(0, 100);
+  const longMode = req.body?.longMode === true;
+  const rawMsg = String(req.body?.message || '').trim();
+  const msg = longMode ? rawMsg.slice(0, 4000) : rawMsg.slice(0, 100);
   if (!msg) return res.json({ reply: '네!' });
 
   // 혼잣말 on/off 자연어 처리
@@ -290,10 +294,10 @@ app.post('/chat', async (req, res) => {
     return res.json({ reply: '알겠어요, 10분마다 말하는 거 그만할게요! 🤐' });
   }
 
-  const sent = await sendToOpenClaw(msg);
+  const sent = await sendToOpenClaw(msg, longMode);
 
   if (sent.ok) {
-    return res.json({ reply: sent.reply.slice(0, 100) });
+    return res.json({ reply: longMode ? sent.reply : sent.reply.slice(0, 100) });
   }
 
   console.warn('[chat] send failed reason=%s', sent.reason);
@@ -306,7 +310,7 @@ app.post('/chat', async (req, res) => {
     'invoke-failed': '실행 실패',
   };
   const reply = reasonMap[sent.reason] || `실패: ${sent.reason}`;
-  return res.json({ reply: reply.slice(0, 100) });
+  return res.json({ reply: longMode ? reply : reply.slice(0, 100) });
 });
 
 if (process.env.MOCK_EVENTS === '1') {
