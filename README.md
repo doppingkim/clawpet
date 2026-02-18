@@ -19,6 +19,7 @@ ClawGotchi is designed to run **only with OpenClaw Gateway integration**.
 - npm
 - A running OpenClaw setup with Gateway enabled
 - Access to `~/.openclaw/openclaw.json`
+- No `.env` file is required
 
 ## 1) Configure OpenClaw Gateway (Required)
 

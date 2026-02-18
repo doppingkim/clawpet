@@ -4,58 +4,52 @@
 
 # ClawGotchi
 
-아늑한 픽셀아트 방 안에서 살아가는 다마고치 스타일의 가상 펫입니다. [OpenClaw](https://github.com/anthropics/openclaw) 에이전트의 작업 상태를 실시간으로 반영합니다.
+ClawGotchi는 **OpenClaw 실시간 활동**을 반영하는 가상 펫 UI입니다.
 
-밥을 주고, 쓰다듬고, 대화하거나 — AI 에이전트가 백그라운드에서 일하는 동안 펫이 자기만의 일상을 보내는 모습을 지켜보세요.
+## 필수 전제
 
-## 주요 기능
+ClawGotchi는 **OpenClaw Gateway 연동이 필수**입니다.
 
-**펫 상호작용**
-- 밥주기(`🍙`), 쓰다듬기(`🤲`), 대화(`/`)
-- 배고픔/애정도/에너지에 따라 달라지는 감정 기반 말풍선
-- 펫 클릭 시 깜짝 반응, 창문 클릭으로 방 조명 토글
+- Gateway가 설정되지 않으면 오구성(misconfigured) 상태입니다.
+- 이 저장소는 단독(standalone) 모드를 제공하지 않습니다.
 
-**실시간 에이전트 연동**
-- OpenClaw Gateway에 WebSocket으로 연결해 에이전트 이벤트를 실시간 수신
-- 작업을 자동 분류 (코딩, 쇼핑, 글쓰기, 조사 등 12개 내장 카테고리)
-- 펫이 해당 가구로 이동하며 맥락에 맞는 상태 메시지 표시
-
-**대기 루틴**
-- 대기 상태에서 펫이 책 읽기, 식물 물주기, 책장 먼지 털기, 이불 돌돌이, 달력 확인, 낮잠 등을 수행
-- 이불 덮고 자는 애니메이션 + 떠다니는 Zzz
-
-**사운드**
-- 액션별 절차적 SFX (타이핑, 물주기, 페이지 넘기기, 걷기, 먹기, 쓰다듬기, 잠자기, 팝)
-- 칩튠 BGM 루프
-- 우측 상단 음소거 토글
-
-## 프로젝트 구조
-
-```
-clawgotchi/
-├── apps/
-│   ├── server/          # Express + WebSocket 서버 (포트 8787)
-│   │   ├── index.ts           # REST API + WS 브로드캐스트
-│   │   ├── categories.ts      # 동적 카테고리 레지스트리 (12개 내장 + 커스텀)
-│   │   └── gateway-listener.ts # OpenClaw Gateway WS 클라이언트
-│   └── web/             # React + Canvas 프론트엔드 (포트 5173)
-│       ├── components/PetRoom.tsx    # 캔버스 렌더러 (방, 캐릭터, 아이템, 이펙트)
-│       ├── hooks/useTaskEvents.ts    # WS 이벤트 리스너
-│       ├── store/usePetStore.ts      # Zustand 상태 (이동, 대기 FSM, 게이지)
-│       └── store/bubbleTemplates.ts  # 감정 × 카테고리 말풍선 시스템
-├── packages/shared/     # 공유 TypeScript 타입
-├── bin/clawgotchi.mjs   # CLI 런처 (브라우저 창 열기)
-├── scripts/             # 에셋 생성 스크립트 (pngjs 기반 픽셀아트)
-└── data/                # 런타임 데이터 (카테고리)
-```
-
-## 요구사항
+## 준비물
 
 - Node.js 20+
 - npm
-- OpenClaw Gateway 실행 중 (선택사항 — 실시간 에이전트 이벤트 수신용)
+- Gateway가 활성화된 OpenClaw 실행 환경
+- `~/.openclaw/openclaw.json` 접근 권한
+- `.env` 파일 불필요
 
-## 시작하기
+## 1) OpenClaw Gateway 설정 (필수)
+
+`~/.openclaw/openclaw.json`에 Gateway 설정이 있어야 합니다.
+
+```json
+{
+  "identity": {
+    "name": "YourAssistantName"
+  },
+  "gateway": {
+    "port": 18789,
+    "auth": {
+      "token": "your-token"
+    }
+  }
+}
+```
+
+필수 키:
+
+- `gateway.port`
+- `gateway.auth.token`
+
+주의:
+
+- 실제 토큰은 외부에 노출하지 마세요.
+- 개인 `openclaw.json`은 Git에 커밋하지 마세요.
+
+## 2) 설치 및 실행
 
 ```bash
 git clone https://github.com/doppingkim/ClawGotchi.git
@@ -64,115 +58,96 @@ npm install
 npm run dev
 ```
 
-실행 후 접속:
-- **웹 UI**: http://localhost:5173
-- **API 서버**: http://localhost:8787
+기본 접속 주소:
+
+- 웹 UI: `http://localhost:5173`
+- API 서버: `http://localhost:8787`
+
+## 3) Gateway 연결 확인
 
 서버 상태 확인:
+
 ```bash
 curl http://localhost:8787/health
 ```
 
-## OpenClaw Gateway 연동
+Gateway 릴레이 상태 확인:
 
-ClawGotchi는 로컬 OpenClaw Gateway에 연결해 에이전트 이벤트를 실시간으로 수신합니다.
-
-설정은 `~/.openclaw/openclaw.json`에서 읽어옵니다:
-```json
-{
-  "gateway": {
-    "port": 18789,
-    "auth": { "token": "your-token" }
-  }
-}
+```bash
+curl http://localhost:8787/debug/gateway
 ```
 
-연결되면 펫이 에이전트의 작업에 자동으로 반응합니다 — 코딩할 때 노트북으로 이동, 일정 작업 시 달력 확인 등.
+정상 기대값:
 
-Gateway가 없어도 `/emit` API로 이벤트를 수동 전송할 수 있습니다.
+- `connected: true`
+- `wsState: 1`
+
+## 동작 방식
+
+연동이 정상일 때 ClawGotchi는 다음을 수행합니다.
+
+- Gateway WebSocket으로 OpenClaw 이벤트 구독
+- 작업 맥락을 카테고리로 분류
+- 상황에 맞는 오브젝트로 펫 이동 및 말풍선/상태 표시
+- OpenClaw 세션(`agent:main:main`)으로 채팅 릴레이
 
 ## API
 
-### `GET /health`
-서버 상태 확인.
-
-### `GET /profile`
-어시스턴트 이름 반환 (`openclaw.json` 또는 `IDENTITY.md`에서 읽음).
-
-### `GET /categories`
-등록된 작업 카테고리 전체 반환 (내장 + 동적).
-
-### `POST /emit`
-작업 이벤트 주입. 카테고리 미지정 시 서버가 summary에서 자동 분류.
-```bash
-curl -X POST http://localhost:8787/emit \
-  -H 'content-type: application/json' \
-  -d '{"category":"coding","status":"working","summary":"인증 모듈 리팩토링 중"}'
-```
-
-### `POST /chat`
-펫과 대화 (최대 100자). Gateway 연결 시 메인 에이전트 세션으로 메시지 릴레이.
-```bash
-curl -X POST http://localhost:8787/chat \
-  -H 'content-type: application/json' \
-  -d '{"message":"안녕!"}'
-```
-
-### `WS /events`
-프론트엔드로 실시간 작업 이벤트를 스트리밍하는 WebSocket 엔드포인트.
-
-## 내장 카테고리
-
-| 카테고리 | 라벨 | 이동 대상 가구 |
-|----------|------|---------------|
-| coding | 코딩 작업 | 노트북 |
-| shopping | 장바구니 정리 | 바구니 |
-| calendar | 일정/소통 | 달력 |
-| writing | 글쓰기 작업 | 노트와 연필 (방석 근처) |
-| research | 자료 조사 | 책장 |
-| music | 음악 | 기타 |
-| communication | 소통 | 달력 |
-| gaming | 게임 | 게임패드 |
-| art | 미술/디자인 | 캔버스 |
-| cooking | 요리 | 가스레인지 |
-| finance | 재무/경제 | 노트북 |
-| learning | 학습 | 책장 |
-
-## 환경변수
-
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `MOCK_EVENTS` | `0` | `1`로 설정 시 테스트용 목 이벤트 브로드캐스트 활성화 |
-| `GEMINI_API_KEY` | — | Gemini API 키 (에셋 생성 스크립트용) |
-| `CLAWGOTCHI_URL` | `http://localhost:5173` | CLI 런처 URL |
-
-## 스크립트
-
-```bash
-npm run dev          # 웹 + 서버 동시 실행
-npm run open         # 브라우저에서 ClawGotchi 열기
-node scripts/qa_20.mjs           # QA 체크리스트 실행
-node scripts/generate_assets.mjs # 기본 픽셀아트 에셋 생성
-node scripts/generate_cozy_pack.mjs # 아늑한 스타일 에셋 팩 생성
-```
+- `GET /health`: 서버 헬스 체크
+- `GET /profile`: 어시스턴트 이름 반환
+- `GET /categories`: 활성 카테고리 목록
+- `GET /debug/gateway`: Gateway 연결 상태
+- `POST /chat`: OpenClaw 세션으로 메시지 릴레이
+- `WS /events`: 프론트엔드 실시간 이벤트 스트림
 
 ## 문제 해결
 
-### "사이트에 연결할 수 없음"
-개발 서버 미실행 또는 포트 충돌:
+### `/debug/gateway`에서 `connected: false`
+
+1. OpenClaw Gateway가 실행 중인지 확인
+2. `~/.openclaw/openclaw.json` 값 확인
+   - `gateway.port`가 실제 포트와 일치하는지
+   - `gateway.auth.token`이 유효한지
+3. Gateway에서 세션 릴레이 invoke 흐름이 허용되는지 확인
+4. 서버 로그의 `[gateway-ws]` 메시지 확인
+
+### 채팅 릴레이 실패
+
+1. 토큰 유효성 확인
+2. 설정된 포트의 Gateway invoke 엔드포인트 접근 가능 여부 확인
+3. 대상 세션 키(`agent:main:main`) 사용 가능 여부 확인
+
+### 포트 충돌
+
+`8787` 또는 `5173`이 이미 사용 중이면 충돌 프로세스를 종료 후 재시작하세요.
+
+## 보안
+
+- `gateway.auth.token`은 비밀정보로 취급하세요.
+- 로컬 자격증명, 비밀 포함 로그, 개인 OpenClaw 설정 파일은 커밋하지 마세요.
+
+## 제거 (정리)
+
+아래 명령으로 10분 혼잣말 cron 제거 + OpenClaw 설정 복원을 한 번에 수행할 수 있습니다.
+
 ```bash
-lsof -ti tcp:5173 | xargs -r kill
-lsof -ti tcp:8787 | xargs -r kill
-npm run dev
+npm run uninstall-clawgotchi
 ```
 
-### 이벤트/채팅이 안 됨
-`http://localhost:8787/health`에서 서버 상태를 확인하고 개발 콘솔 출력을 검토하세요.
+스크립트 복원 우선순위:
 
-### Gateway 릴레이 연결 안 됨
-- `~/.openclaw/openclaw.json`에 유효한 `gateway.auth.token`이 있는지 확인
-- Gateway에서 HTTP tools/invoke를 통한 `sessions_send` 허용 확인
-- 서버 로그에서 `[gateway-ws]` 메시지 확인
+- `~/.openclaw/openclaw.json.clawgotchi.bak`
+- `~/.openclaw/openclaw.json.bak`
+- 최신 `~/.openclaw/openclaw.json.bak.*`
+
+현재 설정은 `openclaw.json.before-clawgotchi-uninstall.TIMESTAMP.bak`로 추가 백업 후 복원합니다.
+
+정리 후 프로젝트 폴더 삭제:
+
+```bash
+cd ..
+rm -rf clawgotchi
+```
 
 ## 라이선스
 
