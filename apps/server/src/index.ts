@@ -12,6 +12,7 @@ import { connectToGateway, getGatewayStatus, getCurrentTaskState } from './gatew
 const app = express();
 app.use(cors());
 app.use(express.json());
+const OPENCLAW_CONFIG_PATH = path.join(os.homedir(), '.openclaw', 'openclaw.json');
 
 // 혼잣말 상태
 let monologueEnabled = true;
@@ -20,12 +21,32 @@ let monologueTimer: ReturnType<typeof setInterval> | null = null;
 // openclaw.json에서 gateway 설정을 직접 읽기
 function loadOpenClawConfig() {
   try {
-    const cfgPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
-    if (!fs.existsSync(cfgPath)) return null;
-    return JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    if (!fs.existsSync(OPENCLAW_CONFIG_PATH)) return null;
+    return JSON.parse(fs.readFileSync(OPENCLAW_CONFIG_PATH, 'utf8'));
   } catch {
     return null;
   }
+}
+
+function resolveRequiredGatewayConfig() {
+  const cfg = loadOpenClawConfig();
+  if (!cfg) {
+    throw new Error(
+      `[init] missing ${OPENCLAW_CONFIG_PATH}. ClawGotchi requires OpenClaw Gateway integration.`
+    );
+  }
+
+  const port = Number(cfg?.gateway?.port || 18789);
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error('[init] invalid gateway.port in openclaw.json');
+  }
+
+  const token = String(cfg?.gateway?.auth?.token || '').trim();
+  if (!token) {
+    throw new Error('[init] missing gateway.auth.token in openclaw.json');
+  }
+
+  return { port, token };
 }
 
 function resolveAssistantName() {
@@ -58,6 +79,8 @@ app.get('/debug/gateway', (_req: any, res: any) => {
   res.json(getGatewayStatus());
 });
 
+const gatewayConfig = resolveRequiredGatewayConfig();
+
 const server = app.listen(8787, () => {
   console.log('ClawGotchi server on http://localhost:8787');
 });
@@ -85,29 +108,12 @@ loadCategories();
 // [disabled] loadTaskHistory();
 
 // Gateway WS 리스너 시작
-const cfg = loadOpenClawConfig();
-if (cfg) {
-  const port = cfg?.gateway?.port || 18789;
-  const token = cfg?.gateway?.auth?.token || '';
-  if (token) {
-    connectToGateway(port, token, broadcast);
-  } else {
-    console.warn('[init] no gateway token, skipping WS listener');
-  }
-} else {
-  console.warn('[init] no openclaw.json, skipping WS listener');
-}
+connectToGateway(gatewayConfig.port, gatewayConfig.token, broadcast);
 
 async function sendToOpenClaw(message: string): Promise<{ ok: true; reply: string } | { ok: false; reason: string }> {
-  const cfg = loadOpenClawConfig();
-  if (!cfg) return { ok: false, reason: 'no-config' };
-
-  const port = cfg?.gateway?.port || 18789;
-  const gatewayUrl = `http://127.0.0.1:${port}`;
-  const token = cfg?.gateway?.auth?.token || '';
+  const gatewayUrl = `http://127.0.0.1:${gatewayConfig.port}`;
+  const token = gatewayConfig.token;
   const sessionKey = 'agent:main:main';
-
-  if (!token) return { ok: false, reason: 'no-token' };
 
   console.log('[chat] gateway=%s sessionKey=%s msg=%s', gatewayUrl, sessionKey, message);
 

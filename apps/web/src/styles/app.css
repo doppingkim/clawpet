@@ -20,6 +20,8 @@ body {
 
 .roomShell {
   position: relative;
+  width: 512px;
+  height: 512px;
   border: 3px solid #22283a;
   border-radius: 10px;
   overflow: hidden;
@@ -239,9 +241,13 @@ body {
 }
 
 @media (max-width: 560px) {
+  .appRoot {
+    padding: 4px;
+  }
+
   .roomShell {
-    width: min(512px, calc(100vw - 12px));
-    height: min(512px, calc(100vw - 12px));
+    width: min(512px, calc(100vw - 8px), calc(100dvh - 8px));
+    height: min(512px, calc(100vw - 8px), calc(100dvh - 8px));
   }
 
   .hudBar {
@@ -254,3 +260,5 @@ body {
     transform: none;
   }
 }
+
+

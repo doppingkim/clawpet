@@ -3,8 +3,6 @@ import { PetRoom } from './components/PetRoom';
 import { usePetStore } from './store/usePetStore';
 import { useTaskEvents } from './hooks/useTaskEvents';
 
-const ROOM = 512;
-
 type GaugeKey = 'satiety' | 'affection' | 'energy';
 
 export function App() {
@@ -14,6 +12,7 @@ export function App() {
   const [activeTip, setActiveTip] = useState<GaugeKey | null>(null);
   const [petName, setPetName] = useState('Claw');
   const [muted, setMuted] = useState(false);
+  const [audioReady, setAudioReady] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -87,8 +86,30 @@ export function App() {
     return audioCtxRef.current;
   };
 
+  useEffect(() => {
+    if (audioReady) return;
+
+    const unlockAudio = () => {
+      const ctx = ensureAudio();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(() => { });
+      }
+      setAudioReady(true);
+    };
+
+    const passive = { passive: true } as const;
+    window.addEventListener('pointerdown', unlockAudio, passive);
+    window.addEventListener('keydown', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio, passive);
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, [audioReady]);
+
   const playSfx = (kind: 'typing' | 'water' | 'page' | 'walk' | 'feed' | 'petting' | 'sleep' | 'pop') => {
-    if (muted) return;
+    if (muted || !audioReady) return;
     const ctx = ensureAudio();
     if (!ctx) return;
     const t0 = ctx.currentTime;
@@ -219,7 +240,7 @@ export function App() {
   };
 
   const playBgmBar = () => {
-    if (muted) return;
+    if (muted || !audioReady) return;
     const ctx = ensureAudio();
     if (!ctx) return;
     const seq = [523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 523.25, 493.88];
@@ -270,14 +291,14 @@ export function App() {
       window.clearInterval(bgmTimerRef.current);
       bgmTimerRef.current = null;
     }
-    if (muted) return;
+    if (muted || !audioReady) return;
     playBgmBar();
     bgmTimerRef.current = window.setInterval(() => playBgmBar(), 1600);
     return () => {
       if (bgmTimerRef.current) window.clearInterval(bgmTimerRef.current);
       bgmTimerRef.current = null;
     };
-  }, [muted]);
+  }, [muted, audioReady]);
 
   const sendChat = async () => {
     const text = chatText.trim().slice(0, 100);
@@ -300,7 +321,7 @@ export function App() {
 
   return (
     <main className="appRoot">
-      <section className="roomShell" style={{ width: ROOM, height: ROOM }} onClick={() => setActiveTip(null)}>
+      <section className="roomShell" onClick={() => setActiveTip(null)}>
         <PetRoom />
 
         <div className="petNameTag" style={{ left: petX, top: Math.max(10, petY - 60) }}>{petName}</div>
@@ -379,3 +400,4 @@ export function App() {
     </main>
   );
 }
+

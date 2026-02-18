@@ -10,7 +10,10 @@
     "dev": "npm-run-all --parallel dev:web dev:server",
     "dev:web": "npm --workspace @clawgotchi/web run dev",
     "dev:server": "npm --workspace @clawgotchi/server run dev",
-    "open": "node ./bin/clawgotchi.mjs"
+    "open": "node ./bin/clawgotchi.mjs",
+    "setup-cron": "bash ./scripts/setup-cron.sh",
+    "remove-cron": "bash ./scripts/remove-cron.sh",
+    "postinstall": "bash ./scripts/setup-cron.sh 2>/dev/null || true"
   },
   "bin": {
     "clawgotchi": "./bin/clawgotchi.mjs"

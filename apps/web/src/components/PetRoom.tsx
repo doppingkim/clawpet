@@ -81,7 +81,7 @@ export function PetRoom() {
     const render = (now: number) => {
       ctx.clearRect(0, 0, ROOM, ROOM);
 
-      const atLaptop = Math.hypot(petX - 190, petY - 344) < 24;
+      const atLaptop = Math.hypot(petX - 155, petY - 344) < 30;
       const laptopCategories = ['coding', 'finance', 'other'];
       const laptopActive = laptopCategories.includes(currentCategory) && atLaptop;
       if (roomDark && roomDarkImg.complete) ctx.drawImage(roomDarkImg, 0, 0, ROOM, ROOM);

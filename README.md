@@ -4,58 +4,51 @@
 
 # ClawGotchi
 
-A tamagotchi-style virtual pet that lives inside a cozy pixel-art room and reacts to your [OpenClaw](https://github.com/anthropics/openclaw) agent's work in real time.
+ClawGotchi is a virtual pet UI for **live OpenClaw activity**.
 
-Feed it, pet it, chat with it — or just watch it go about its little daily routine while your AI agent handles tasks in the background.
+## Non-Negotiable Requirement
 
-## Features
+ClawGotchi is designed to run **only with OpenClaw Gateway integration**.
 
-**Pet Interaction**
-- Feed (`🍙`), pet (`🤲`), or chat (`/`) with your pet
-- Mood-based speech bubbles that change with hunger, affection, and energy
-- Click the pet for surprise reactions, toggle room lights via the window
+- If OpenClaw Gateway is not configured, this project is considered misconfigured.
+- This repository does not define a standalone mode.
 
-**Live Agent Integration**
-- Connects to OpenClaw Gateway via WebSocket to receive agent events in real time
-- Auto-categorizes tasks (coding, shopping, writing, research, and 8 more built-in categories)
-- Pet walks to the relevant furniture and shows context-aware status messages
-
-**Idle Routine**
-- When idle, the pet reads books, waters plants, dusts shelves, rolls lint off the bed, checks the calendar, and naps
-- Sleeping animation with blanket and floating Zzz
-
-**Audio**
-- Procedural SFX for each action (typing, watering, page flip, walking, feeding, petting, sleeping, pop)
-- Chiptune BGM loop
-- Mute toggle in the top-right corner
-
-## Architecture
-
-```
-clawgotchi/
-├── apps/
-│   ├── server/          # Express + WebSocket server (port 8787)
-│   │   ├── index.ts           # REST API + WS broadcast
-│   │   ├── categories.ts      # Dynamic category registry (12 built-in + custom)
-│   │   └── gateway-listener.ts # OpenClaw Gateway WS client
-│   └── web/             # React + Canvas frontend (port 5173)
-│       ├── components/PetRoom.tsx    # Canvas renderer (room, character, items, effects)
-│       ├── hooks/useTaskEvents.ts    # WS event listener
-│       ├── store/usePetStore.ts      # Zustand state (movement, idle FSM, gauges)
-│       └── store/bubbleTemplates.ts  # Mood × category speech bubble system
-├── packages/shared/     # Shared TypeScript types
-├── bin/clawgotchi.mjs   # CLI launcher (opens browser window)
-├── scripts/             # Asset generation scripts (pngjs-based pixel art)
-└── data/                # Runtime data (categories)
-```
-
-## Requirements
+## What You Need
 
 - Node.js 20+
 - npm
-- OpenClaw Gateway running (optional — for live agent event relay)
+- A running OpenClaw setup with Gateway enabled
+- Access to `~/.openclaw/openclaw.json`
 
-## Getting Started
+## 1) Configure OpenClaw Gateway (Required)
+
+Edit `~/.openclaw/openclaw.json` and make sure Gateway fields are present.
+
+```json
+{
+  "identity": {
+    "name": "YourAssistantName"
+  },
+  "gateway": {
+    "port": 18789,
+    "auth": {
+      "token": "your-token"
+    }
+  }
+}
+```
+
+Required keys:
+
+- `gateway.port`
+- `gateway.auth.token`
+
+Notes:
+
+- Keep your real token private.
+- Never commit personal `openclaw.json` to Git.
+
+## 2) Install and Run ClawGotchi
 
 ```bash
 git clone https://github.com/doppingkim/ClawGotchi.git
@@ -64,115 +57,75 @@ npm install
 npm run dev
 ```
 
-Once running:
-- **Web UI**: http://localhost:5173
-- **API Server**: http://localhost:8787
+Default endpoints:
 
-Quick health check:
+- Web UI: `http://localhost:5173`
+- API Server: `http://localhost:8787`
+
+## 3) Verify Gateway Connection
+
+Check ClawGotchi server health:
+
 ```bash
 curl http://localhost:8787/health
 ```
 
-## OpenClaw Gateway Integration
-
-ClawGotchi connects to your local OpenClaw Gateway to receive real-time agent events.
-
-Configuration is read from `~/.openclaw/openclaw.json`:
-```json
-{
-  "gateway": {
-    "port": 18789,
-    "auth": { "token": "your-token" }
-  }
-}
-```
-
-When connected, the pet automatically reacts to your agent's work — walking to the laptop when coding, checking the calendar for scheduling tasks, etc.
-
-If Gateway is not available, you can still use the `/emit` API to send events manually.
-
-## API
-
-### `GET /health`
-Server status check.
-
-### `GET /profile`
-Returns the assistant name (read from `openclaw.json` or `IDENTITY.md`).
-
-### `GET /categories`
-Returns all registered task categories (built-in + dynamic).
-
-### `POST /emit`
-Inject a task event. The server auto-categorizes the summary if no category is provided.
-```bash
-curl -X POST http://localhost:8787/emit \
-  -H 'content-type: application/json' \
-  -d '{"category":"coding","status":"working","summary":"Refactoring auth module"}'
-```
-
-### `POST /chat`
-Chat with the pet (max 100 characters). If OpenClaw Gateway is connected, the message is relayed to the main agent session.
-```bash
-curl -X POST http://localhost:8787/chat \
-  -H 'content-type: application/json' \
-  -d '{"message":"Hello!"}'
-```
-
-### `WS /events`
-WebSocket endpoint for real-time task event streaming to the frontend.
-
-## Built-in Categories
-
-| Category | Label | Furniture Target |
-|----------|-------|-----------------|
-| coding | Coding | Laptop |
-| shopping | Shopping | Basket |
-| calendar | Calendar/Comms | Calendar |
-| writing | Writing | Notepad (near cushion) |
-| research | Research | Bookshelf |
-| music | Music | Guitar |
-| communication | Communication | Calendar |
-| gaming | Gaming | Gamepad |
-| art | Art/Design | Canvas |
-| cooking | Cooking | Gas Stove |
-| finance | Finance/Economy | Laptop |
-| learning | Learning | Bookshelf |
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MOCK_EVENTS` | `0` | Set to `1` to enable mock event broadcasting for testing |
-| `GEMINI_API_KEY` | — | Gemini API key (for asset generation scripts) |
-| `CLAWGOTCHI_URL` | `http://localhost:5173` | URL for the CLI launcher |
-
-## Scripts
+Check Gateway relay state:
 
 ```bash
-npm run dev          # Start both web and server in parallel
-npm run open         # Open ClawGotchi in a browser window
-node scripts/qa_20.mjs           # Run QA checklist
-node scripts/generate_assets.mjs # Generate base pixel art assets
-node scripts/generate_cozy_pack.mjs # Generate cozy-style asset pack
+curl http://localhost:8787/debug/gateway
 ```
+
+Expected for healthy integration:
+
+- `connected: true`
+- `wsState: 1`
+
+If not connected, see troubleshooting below.
+
+## Runtime Behavior
+
+When integration is healthy, ClawGotchi will:
+
+- Subscribe to OpenClaw agent events through Gateway WebSocket
+- Classify incoming work context by category
+- Move the pet to context-specific objects and display matching speech/status
+- Relay chat messages to the OpenClaw session (`agent:main:main`)
+
+## API (Operational)
+
+- `GET /health`: server health check
+- `GET /profile`: assistant name (from OpenClaw identity fallback chain)
+- `GET /categories`: active category registry
+- `GET /debug/gateway`: Gateway connection status
+- `POST /chat`: relay a message to the OpenClaw session
+- `WS /events`: realtime event stream to frontend
 
 ## Troubleshooting
 
-### "Site can't be reached"
-Dev server not running or port conflict:
-```bash
-lsof -ti tcp:5173 | xargs -r kill
-lsof -ti tcp:8787 | xargs -r kill
-npm run dev
-```
+### `connected` is `false` on `/debug/gateway`
 
-### Events/chat not working
-Check server health at `http://localhost:8787/health` and review the dev console output.
+1. Confirm OpenClaw Gateway is running.
+2. Re-check `~/.openclaw/openclaw.json`:
+   - `gateway.port` matches your actual Gateway port
+   - `gateway.auth.token` is valid
+3. Ensure Gateway allows the required invoke flow for session relay.
+4. Check server logs for `[gateway-ws]` messages.
 
-### Gateway relay not connecting
-- Verify `~/.openclaw/openclaw.json` has a valid `gateway.auth.token`
-- Ensure Gateway allows `sessions_send` via HTTP tools/invoke
-- Check server logs for `[gateway-ws]` messages
+### Chat relay fails
+
+1. Confirm token is valid and not expired.
+2. Confirm Gateway invoke endpoint is reachable on configured port.
+3. Confirm target OpenClaw session key is available (`agent:main:main`).
+
+### Port conflict
+
+If `8787` or `5173` is already used, free the port and restart.
+
+## Security
+
+- Treat `gateway.auth.token` as a secret.
+- Do not commit local credentials, logs with secrets, or personal OpenClaw config files.
 
 ## License
 

@@ -1,9 +1,14 @@
 import fs from 'fs';
 import jpeg from 'jpeg-js';
 import { PNG } from 'pngjs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const inPath = '/home/dopping/.openclaw/workspace/clawgotchi/apps/web/public/assets/character-custom.jpg';
-const outPath = '/home/dopping/.openclaw/workspace/clawgotchi/apps/web/public/assets/character-custom.png';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const assetDir = path.resolve(__dirname, '../apps/web/public/assets');
+const inPath = path.join(assetDir, 'character-custom.jpg');
+const outPath = path.join(assetDir, 'character-custom.png');
 
 const jpg = jpeg.decode(fs.readFileSync(inPath), { useTArray: true });
 const W = jpg.width;

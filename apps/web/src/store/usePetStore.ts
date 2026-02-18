@@ -59,22 +59,22 @@ type State = {
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
 const TARGET: Record<string, { x: number; y: number }> = {
-  laptop: { x: 190, y: 344 },
-  cart: { x: 368, y: 420 },
+  laptop: { x: 155, y: 344 },
+  cart: { x: 360, y: 410 },
   calendar: { x: 440, y: 218 },
   shelf: { x: 400, y: 142 },
-  plant: { x: 440, y: 404 },
+  plant: { x: 420, y: 410 },
   bed: { x: 214, y: 170 },
   bedSleep: { x: 124, y: 96 },
   cushion: { x: 190, y: 344 },
   desk: { x: 162, y: 342 },
   center: { x: 260, y: 300 },
-  guitar: { x: 320, y: 200 },
-  stove: { x: 380, y: 290 },
-  canvas: { x: 300, y: 170 },
-  gamepad: { x: 235, y: 290 },
-  notebook: { x: 145, y: 420 },
-  notepad: { x: 165, y: 370 },
+  guitar: { x: 430, y: 210 },
+  stove: { x: 370, y: 275 },
+  canvas: { x: 100, y: 245 },
+  gamepad: { x: 175, y: 395 },
+  notebook: { x: 170, y: 420 },
+  notepad: { x: 155, y: 290 },
 };
 
 const builtInCategoryTarget: Record<string, string> = {
@@ -98,13 +98,94 @@ const BLOCKS = [
   { x1: 300, y1: 52, x2: 456, y2: 194 },   // 책장/기타/캔버스 영역
   { x1: 28, y1: 250, x2: 138, y2: 500 },   // 왼쪽 벽
   { x1: 306, y1: 430, x2: 486, y2: 504 },  // 우하단
-  { x1: 358, y1: 265, x2: 408, y2: 312 }   // 가스레인지 (통과 불가)
+  { x1: 395, y1: 242, x2: 478, y2: 316 }   // 가스레인지 (실제 면적 커버)
 ];
+
+// 장애물 우회용 웨이포인트 상태
+let escapeWaypoint: { x: number; y: number } | null = null;
+let stuckFrames = 0;
 
 function isBlocked(x: number, y: number) {
   if (x < 52 || x > 462 || y < 82 || y > 474) return true;
   const r = 16;
   return BLOCKS.some((b) => x + r > b.x1 && x - r < b.x2 && y + r > b.y1 && y - r < b.y2);
+}
+
+/** 펫→탈출점 직선 경로가 특정 블록을 관통하는지 확인 */
+function isPathClearOfBlock(px: number, py: number, ex: number, ey: number, block: typeof BLOCKS[0]): boolean {
+  const r = 16;
+  if (Math.abs(py - ey) < 1) {
+    // 수평 이동: y가 블록 Y범위 안이면 X범위 겹침 확인
+    if (py + r > block.y1 && py - r < block.y2) {
+      const xMin = Math.min(px, ex), xMax = Math.max(px, ex);
+      if (xMax + r > block.x1 && xMin - r < block.x2) return false;
+    }
+  } else {
+    // 수직 이동: x가 블록 X범위 안이면 Y범위 겹침 확인
+    if (px + r > block.x1 && px - r < block.x2) {
+      const yMin = Math.min(py, ey), yMax = Math.max(py, ey);
+      if (yMax + r > block.y1 && yMin - r < block.y2) return false;
+    }
+  }
+  return true;
+}
+
+/** 탈출점→목표가 L자 경로로 블록을 우회할 수 있는지 확인 */
+function canLPathReachTarget(ex: number, ey: number, tx: number, ty: number): boolean {
+  // L경로1: 수평→수직 (꺾는점: tx, ey)
+  if (!isBlocked(tx, ey) && !isBlocked((ex + tx) / 2, ey) && !isBlocked(tx, (ey + ty) / 2)) return true;
+  // L경로2: 수직→수평 (꺾는점: ex, ty)
+  if (!isBlocked(ex, ty) && !isBlocked(ex, (ey + ty) / 2) && !isBlocked((ex + tx) / 2, ty)) return true;
+  return false;
+}
+
+/** 장애물에 막혔을 때 우회 웨이포인트 계산 */
+function calcEscapeWaypoint(px: number, py: number, tx: number, ty: number, candX: number, candY: number): { x: number; y: number } | null {
+  const r = 16;
+  const margin = r + 6;
+  // 이동 방향에서 부딪히는 블록 찾기
+  const block = BLOCKS.find(b =>
+    candX + r > b.x1 && candX - r < b.x2 && candY + r > b.y1 && candY - r < b.y2
+  );
+  if (!block) return null;
+  // 블록 4변 바깥 탈출 후보
+  const candidates = [
+    { x: block.x1 - margin, y: py },  // 좌측
+    { x: block.x2 + margin, y: py },  // 우측
+    { x: px, y: block.y1 - margin },  // 상단
+    { x: px, y: block.y2 + margin },  // 하단
+  ];
+  let best: { x: number; y: number } | null = null;
+  let bestCost = Infinity;
+  for (const c of candidates) {
+    if (isBlocked(c.x, c.y)) continue;
+    // 펫→탈출점 경로가 블록을 관통하면 제외
+    if (!isPathClearOfBlock(px, py, c.x, c.y, block)) continue;
+    // 탈출점→목표가 L자 우회 가능한지 확인 (불가능하면 제외)
+    if (!canLPathReachTarget(c.x, c.y, tx, ty)) continue;
+    const cost = Math.hypot(c.x - px, c.y - py) + Math.hypot(tx - c.x, ty - c.y);
+    if (cost < bestCost) { bestCost = cost; best = c; }
+  }
+  return best;
+}
+
+/** 웨이포인트 방향으로 이동 (axis-sliding 적용) */
+function moveTowardWaypoint(px: number, py: number, spd: number): { x: number; y: number } | null {
+  if (!escapeWaypoint) return null;
+  const edx = escapeWaypoint.x - px;
+  const edy = escapeWaypoint.y - py;
+  const edist = Math.hypot(edx, edy);
+  if (edist < 3) { escapeWaypoint = null; stuckFrames = 0; return null; }
+  const es = Math.min(spd, edist);
+  const ecx = px + (edx / edist) * es;
+  const ecy = py + (edy / edist) * es;
+  if (!isBlocked(ecx, ecy)) return { x: ecx, y: ecy };
+  if (!isBlocked(ecx, py)) return { x: ecx, y: py };
+  if (!isBlocked(px, ecy)) return { x: px, y: ecy };
+  // 웨이포인트로도 갈 수 없으면 포기
+  escapeWaypoint = null;
+  stuckFrames = 0;
+  return null;
 }
 
 function nearestWalkable(x: number, y: number) {
@@ -221,7 +302,6 @@ export const usePetStore = create<State>((set) => ({
   taskLockedUntil: 0,
   sleepPhase: 'none',
   monologueEnabled: true,
-
   setDynamicCategories: (cats) => set({ dynamicCategories: cats }),
 
   toggleMonologue: () => set((s) => ({ monologueEnabled: !s.monologueEnabled })),
@@ -383,12 +463,26 @@ export const usePetStore = create<State>((set) => ({
         sleepPhase = 'waking';
         statusText = doneMsg || '잘 잤다! 개운해~ 😊';
       } else if (doneMsg) {
-        // doneMsg가 있으면 2초간 표시 후 다음 step으로 (즉시 덮어쓰기 방지)
+        // doneMsg 2초 표시 + 다음 스텝 진행
+        idleStep = idleStep + 1;
+        if (idleStep >= IDLE_STEPS.length) {
+          IDLE_STEPS = buildShuffledSteps();
+          idleStep = 0;
+        }
+        idleAt = now;
+        const ns = IDLE_STEPS[idleStep];
+        const np = TARGET[ns.target];
+        const nSkip = ns.target === 'bedSleep' || ns.target === 'shelf'
+          || ns.target === 'bed' || ns.target === 'stove'
+          || ns.target === 'guitar' || ns.target === 'canvas';
+        const nSafe = nSkip ? np : nearestWalkable(np.x, np.y);
+        escapeWaypoint = null; stuckFrames = 0;
         return {
-          statusText: doneMsg,
-          reactUntil: now + 2000,
-          idleAt: now,
-          idleStep, targetX, targetY, heldItem, effect, effectUntil, sleepPhase,
+          statusText: doneMsg, reactUntil: now + 2000,
+          idleAt: now, idleStep,
+          targetX: nSafe.x, targetY: nSafe.y,
+          heldItem: 'none' as HeldItem, effect: 'none' as Effect, effectUntil: 0,
+          sleepPhase: (ns as any).sleepStart ? 'moving' as SleepPhase : sleepPhase,
           petX: s.petX, petY: s.petY
         };
       }
@@ -409,6 +503,7 @@ export const usePetStore = create<State>((set) => ({
       const safe = skipCollision ? p : nearestWalkable(p.x, p.y);
       targetX = safe.x;
       targetY = safe.y;
+      escapeWaypoint = null; stuckFrames = 0;
       heldItem = step.held as HeldItem;
       if (!doneMsg && !((outgoingStep as any).sleepEnd)) {
         statusText = step.msg;
@@ -435,6 +530,10 @@ export const usePetStore = create<State>((set) => ({
     }
 
     const speed = 2.8;
+    // 우회 웨이포인트 이동
+    const wp = moveTowardWaypoint(s.petX, s.petY, speed);
+    if (wp) return { petX: wp.x, petY: wp.y, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText, sleepPhase };
+
     const dx = targetX - s.petX;
     const dy = targetY - s.petY;
     const dist = Math.hypot(dx, dy);
@@ -461,6 +560,15 @@ export const usePetStore = create<State>((set) => ({
     if (!blockedXY) { nx = candX; ny = candY; }
     else if (!blockedX) nx = candX;
     else if (!blockedY) ny = candY;
+
+    // 실질적으로 막힘 (미세 이동 포함) → 우회 웨이포인트 계산
+    if (Math.hypot(nx - s.petX, ny - s.petY) < 0.5 && !allowPassBlocked && !escapingBlockedZone) {
+      stuckFrames++;
+      if (stuckFrames > 6) {
+        escapeWaypoint = calcEscapeWaypoint(s.petX, s.petY, targetX, targetY, candX, candY);
+        stuckFrames = 0;
+      }
+    } else { stuckFrames = 0; }
 
     return { petX: nx, petY: ny, targetX, targetY, idleStep, idleAt, heldItem, effect, effectUntil, statusText, sleepPhase };
   }),
