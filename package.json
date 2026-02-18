@@ -13,7 +13,8 @@
     "open": "node ./bin/clawgotchi.mjs",
     "setup-cron": "bash ./scripts/setup-cron.sh",
     "remove-cron": "bash ./scripts/remove-cron.sh",
-    "postinstall": "bash ./scripts/setup-cron.sh 2>/dev/null || true"
+    "postinstall": "bash ./scripts/setup-cron.sh 2>/dev/null || true",
+    "uninstall-clawgotchi": "bash ./scripts/uninstall.sh"
   },
   "bin": {
     "clawgotchi": "./bin/clawgotchi.mjs"

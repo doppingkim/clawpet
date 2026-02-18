@@ -6,3 +6,9 @@ dist/
 data/task_history.json
 data/categories.json
 data/room_upgrades.json
+# Local artifacts
+ClawGotchi/
+Gemini_Generated_Image_*.png
+progress.md
+apps/server/.openclaw/
+~/

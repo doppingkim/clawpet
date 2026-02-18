@@ -127,6 +127,29 @@ If `8787` or `5173` is already used, free the port and restart.
 - Treat `gateway.auth.token` as a secret.
 - Do not commit local credentials, logs with secrets, or personal OpenClaw config files.
 
+## Uninstall (Cleanup)
+
+Run one command to remove the 10-minute monologue cron and restore your OpenClaw config:
+
+```bash
+npm run uninstall-clawgotchi
+```
+
+Restore priority used by the script:
+
+- `~/.openclaw/openclaw.json.clawgotchi.bak`
+- `~/.openclaw/openclaw.json.bak`
+- newest `~/.openclaw/openclaw.json.bak.*`
+
+It also saves your current config as `openclaw.json.before-clawgotchi-uninstall.TIMESTAMP.bak`.
+
+After uninstall, you can delete the project folder:
+
+```bash
+cd ..
+rm -rf clawgotchi
+```
+
 ## License
 
 MIT
