@@ -11,5 +11,20 @@ if errorlevel 1 (
     echo Build failed
     exit /b 1
 )
-echo Debug build succeeded!
+set RELEASE_DIR=%~dp0src-tauri\target\debug
+if exist "%RELEASE_DIR%\clawpet.exe" (
+    echo Debug build succeeded: "%RELEASE_DIR%\clawpet.exe"
+    exit /b 0
+)
+if exist "%RELEASE_DIR%\clawgotchi.exe" (
+    echo clawpet.exe not found. Renaming clawgotchi.exe to clawpet.exe for compatibility.
+    copy /Y "%RELEASE_DIR%\clawgotchi.exe" "%RELEASE_DIR%\clawpet.exe" >nul
+    if exist "%RELEASE_DIR%\clawgotchi.pdb" (
+        copy /Y "%RELEASE_DIR%\clawgotchi.pdb" "%RELEASE_DIR%\clawpet.pdb" >nul
+    )
+    echo Debug build succeeded: "%RELEASE_DIR%\clawpet.exe"
+    exit /b 0
+)
+echo Debug build completed but no executable found in "%RELEASE_DIR%"
+exit /b 1
 

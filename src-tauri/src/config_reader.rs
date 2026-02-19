@@ -340,6 +340,48 @@ fn push_workspace_identity_candidates(paths: &mut Vec<PathBuf>, workspace: &Path
     push_identity_file_candidates(paths, workspace);
 }
 
+#[cfg(windows)]
+fn find_wsl_identity_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let wsl_root = Path::new(r"\\wsl$");
+
+    let distros = match fs::read_dir(wsl_root) {
+        Ok(entries) => entries,
+        Err(_) => return paths,
+    };
+
+    for distro in distros.flatten() {
+        let is_dir = distro.file_type().map(|t| t.is_dir()).unwrap_or(false);
+        if !is_dir {
+            continue;
+        }
+
+        let users_home = distro.path().join("home");
+        let users = match fs::read_dir(&users_home) {
+            Ok(entries) => entries,
+            Err(_) => continue,
+        };
+
+        for user in users.flatten() {
+            let user_is_dir = user.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            if !user_is_dir {
+                continue;
+            }
+
+            let openclaw_dir = user.path().join(".openclaw");
+            push_identity_file_candidates(&mut paths, &openclaw_dir);
+            push_identity_file_candidates(&mut paths, &openclaw_dir.join("workspace"));
+        }
+    }
+
+    paths
+}
+
+#[cfg(not(windows))]
+fn find_wsl_identity_paths() -> Vec<PathBuf> {
+    Vec::new()
+}
+
 fn candidate_identity_paths() -> Vec<PathBuf> {
     let mut paths = Vec::new();
 
@@ -365,6 +407,10 @@ fn candidate_identity_paths() -> Vec<PathBuf> {
         push_identity_file_candidates(&mut paths, &config_dir.join("openclaw"));
         push_identity_file_candidates(&mut paths, &config_dir.join("OpenClaw").join("workspace"));
         push_identity_file_candidates(&mut paths, &config_dir.join("OpenClaw"));
+    }
+
+    for path in find_wsl_identity_paths() {
+        push_unique(&mut paths, path);
     }
 
     for config_path in candidate_config_paths() {
