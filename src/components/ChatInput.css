@@ -38,3 +38,41 @@
 .chat-input::placeholder {
   color: #999;
 }
+
+.chat-image-preview {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 4px;
+  border: 2px solid #333;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.chat-image-thumb {
+  display: block;
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+}
+
+.chat-image-remove {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.chat-image-remove:hover {
+  background: rgba(200, 0, 0, 0.8);
+}

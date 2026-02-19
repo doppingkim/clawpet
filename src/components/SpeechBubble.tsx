@@ -4,6 +4,7 @@ import { renderMarkdown } from "../utils/renderMarkdown";
 import "./SpeechBubble.css";
 
 const LONG_RESPONSE_THRESHOLD = 100;
+const ENABLE_PARCHMENT = import.meta.env.VITE_ENABLE_PARCHMENT !== "false";
 
 export function SpeechBubble() {
   const visible = useStore((s) => s.speechBubbleVisible);
@@ -33,7 +34,8 @@ export function SpeechBubble() {
 
   if (!visible) return null;
 
-  const isLong = lastResponse && lastResponse.length > LONG_RESPONSE_THRESHOLD;
+  const isLong =
+    ENABLE_PARCHMENT && lastResponse && lastResponse.length > LONG_RESPONSE_THRESHOLD;
 
   return (
     <div className="speech-bubble" onClick={handleDismiss}>

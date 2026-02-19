@@ -28,3 +28,19 @@ body,
   justify-content: flex-end;
   position: relative;
 }
+
+.drop-overlay {
+  position: absolute;
+  inset: 10px;
+  border: 3px dashed #0066cc;
+  border-radius: 16px;
+  background: rgba(0, 102, 204, 0.08);
+  z-index: 50;
+  pointer-events: none;
+  animation: drop-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes drop-pulse {
+  from { border-color: #0066cc; background: rgba(0, 102, 204, 0.08); }
+  to { border-color: #3399ff; background: rgba(0, 102, 204, 0.15); }
+}

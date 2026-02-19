@@ -6,6 +6,7 @@ import { ChatInput } from "./components/ChatInput";
 import { ParchmentPage } from "./components/ParchmentPage";
 import { DisconnectedOverlay } from "./components/DisconnectedOverlay";
 import { useGateway } from "./hooks/useGateway";
+import { useDrop } from "./hooks/useDrop";
 import { useStore } from "./store/useStore";
 
 const isParchmentWindow = getCurrentWindow().label === "parchment";
@@ -18,6 +19,7 @@ export default function App() {
   const parchmentVisible = useStore((s) => s.parchmentVisible);
 
   useGateway();
+  const { isDragOver } = useDrop();
 
   // Prevent right-click context menu
   useEffect(() => {
@@ -28,6 +30,9 @@ export default function App() {
 
   return (
     <>
+      {isDragOver && connectionState === "connected" && !parchmentVisible && (
+        <div className="drop-overlay" />
+      )}
       {connectionState === "disconnected" ? (
         <DisconnectedOverlay />
       ) : (

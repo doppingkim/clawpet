@@ -9,6 +9,8 @@ import type { ChatEventPayload, GatewayHelloOk } from "../gateway/protocol";
 type OpenClawConfig = {
   token: string | null;
   port: number;
+  host?: string;
+  url?: string | null;
 };
 
 export function useGateway() {
@@ -32,20 +34,33 @@ export function useGateway() {
       let config: OpenClawConfig;
       try {
         config = await invoke<OpenClawConfig>("read_openclaw_config");
-        console.log("[gateway] config loaded:", JSON.stringify({ port: config.port, hasToken: !!config.token }));
+        console.log(
+          "[gateway] config loaded:",
+          JSON.stringify({
+            port: config.port,
+            host: config.host ?? "127.0.0.1",
+            hasUrl: !!config.url,
+            hasToken: !!config.token,
+          }),
+        );
       } catch (err) {
         console.error("[gateway] failed to read config:", err);
-        config = { token: null, port: 18789 };
+        config = { token: null, port: 18789, host: "127.0.0.1", url: null };
       }
 
       if (cancelled) return;
       if (!config.token) {
         console.warn("[gateway] no auth token found");
         setConnectionState("disconnected");
+        setCharacterAnimation("sleeping");
+        setChatRunId(null);
+        setChatLoading(false);
         return;
       }
 
-      const url = `ws://127.0.0.1:${config.port}`;
+      const url =
+        (config.url && config.url.trim()) ||
+        `ws://${(config.host || "127.0.0.1").trim()}:${config.port}`;
       setGatewayConfig(url, config.token);
 
       const client = new GatewayClient({
@@ -58,6 +73,8 @@ export function useGateway() {
           if (cancelled) return;
           setConnectionState("connected");
           setCharacterAnimation("idle");
+          setChatRunId(null);
+          setChatLoading(false);
 
           // Extract session key from snapshot
           const snapshot = hello.snapshot as
@@ -76,6 +93,8 @@ export function useGateway() {
           if (!cancelled) {
             setConnectionState("disconnected");
             setCharacterAnimation("sleeping");
+            setChatRunId(null);
+            setChatLoading(false);
           }
         },
       });
@@ -95,12 +114,16 @@ export function useGateway() {
       if (payload.runId && store.chatRunId && payload.runId !== store.chatRunId) {
         return;
       }
+      // Ignore unsolicited streaming events when no run is active
+      if (!store.chatRunId && payload.state === "delta") {
+        return;
+      }
 
       if (payload.state === "delta") {
         const text = extractText(payload.message);
         if (typeof text === "string") {
           appendStreamingText(text);
-          showSpeechBubble(text.length > 100 ? text.slice(0, 100) + "..." : text);
+          showSpeechBubble(text);
           setCharacterAnimation("talking");
         }
       } else if (payload.state === "final") {
@@ -108,7 +131,7 @@ export function useGateway() {
         const finalText = text ?? store.streamingText;
         if (finalText) {
           setLastResponse(finalText);
-          showSpeechBubble(finalText.length > 100 ? finalText.slice(0, 100) + "..." : finalText);
+          showSpeechBubble(finalText);
         }
         setChatRunId(null);
         setChatLoading(false);
@@ -123,7 +146,7 @@ export function useGateway() {
         const text = store.streamingText;
         if (text) {
           setLastResponse(text);
-          showSpeechBubble(text.length > 100 ? text.slice(0, 100) + "..." : text);
+          showSpeechBubble(text);
         }
         setChatRunId(null);
         setChatLoading(false);

@@ -18,6 +18,9 @@ interface ClawGotchiState {
   streamingText: string;
   lastResponse: string | null;
 
+  // Image attachment
+  attachedImage: { dataUrl: string; mimeType: string } | null;
+
   // UI
   speechBubbleVisible: boolean;
   speechBubbleText: string;
@@ -36,6 +39,9 @@ interface ClawGotchiState {
   setChatRunId: (id: string | null) => void;
   appendStreamingText: (text: string) => void;
   clearStreamingText: () => void;
+
+  setAttachedImage: (img: { dataUrl: string; mimeType: string }) => void;
+  clearAttachedImage: () => void;
 
   showSpeechBubble: (text: string) => void;
   hideSpeechBubble: () => void;
@@ -59,6 +65,9 @@ export const useStore = create<ClawGotchiState>((set) => ({
   streamingText: "",
   lastResponse: null,
 
+  // Image attachment
+  attachedImage: null,
+
   // UI
   speechBubbleVisible: false,
   speechBubbleText: "",
@@ -77,6 +86,9 @@ export const useStore = create<ClawGotchiState>((set) => ({
   setChatRunId: (chatRunId) => set({ chatRunId }),
   appendStreamingText: (text) => set({ streamingText: text }),
   clearStreamingText: () => set({ streamingText: "" }),
+
+  setAttachedImage: (img) => set({ attachedImage: img }),
+  clearAttachedImage: () => set({ attachedImage: null }),
 
   showSpeechBubble: (text) => set({ speechBubbleVisible: true, speechBubbleText: text }),
   hideSpeechBubble: () => set({ speechBubbleVisible: false, speechBubbleText: "" }),
