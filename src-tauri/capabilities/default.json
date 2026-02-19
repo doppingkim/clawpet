@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "ClawGotchi default capabilities",
-  "windows": ["main", "parchment", "capture"],
+  "windows": ["main", "parchment", "capture", "capture-area", "history"],
   "permissions": [
     "core:default",
     "core:window:allow-create",

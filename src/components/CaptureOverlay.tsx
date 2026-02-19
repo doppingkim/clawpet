@@ -7,6 +7,7 @@ import "./CaptureOverlay.css";
 type Point = { x: number; y: number };
 type Rect = { x: number; y: number; width: number; height: number };
 type CaptureResult = { base64: string; mime_type: string };
+type CaptureRegion = { x: number; y: number; width: number; height: number };
 
 const MIN_CAPTURE_SIZE = 4;
 
@@ -74,18 +75,23 @@ export function CaptureOverlay() {
     await emitTo("main", "clawgotchi://capture-error", payload);
   }, []);
 
-  const finishCapture = useCallback(
+  const resolveRegion = useCallback(
     async (rect: Rect) => {
       const win = getCurrentWindow();
       const [scale, winPos] = await Promise.all([win.scaleFactor(), win.outerPosition()]);
 
-      const region = {
+      return {
         x: Math.round(winPos.x + rect.x * scale),
         y: Math.round(winPos.y + rect.y * scale),
         width: Math.max(1, Math.round(rect.width * scale)),
         height: Math.max(1, Math.round(rect.height * scale)),
       };
+    },
+    [],
+  );
 
+  const finishCapture = useCallback(
+    async (region: CaptureRegion) => {
       const result = await invoke<CaptureResult>("capture_screen_region", { region });
       await emitCaptureComplete(result);
     },
@@ -120,15 +126,16 @@ export function CaptureOverlay() {
     busyRef.current = true;
     setBusy(true);
     try {
+      const region = await resolveRegion(rect);
       // Hide first so the overlay disappears immediately while capture/encode runs.
       await hideWindow();
-      await finishCapture(rect);
+      await finishCapture(region);
     } catch (err) {
       await emitCaptureError(String(err));
     } finally {
       await closeWindow();
     }
-  }, [clearDrag, closeWindow, emitCaptureError, finishCapture, hideWindow]);
+  }, [clearDrag, closeWindow, emitCaptureError, finishCapture, hideWindow, resolveRegion]);
 
   const handleMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
