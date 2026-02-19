@@ -19,44 +19,47 @@ const DEFAULT_NAME = "OpenClaw";
 type ActionId = "capture" | "memo" | "settings";
 type OpenClawIdentity = { name?: string | null };
 
-const MENU_ACTIONS: Array<{
-  id: ActionId;
-  label: string;
-  tx: string;
-  ty: string;
-}> = [
-  { id: "capture", label: "Area capture", tx: "-56px", ty: "-48px" },
-  { id: "memo", label: "Quick memo (coming soon)", tx: "0px", ty: "-76px" },
-  { id: "settings", label: "Settings (coming soon)", tx: "56px", ty: "-48px" },
+const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
+  { id: "capture", label: "Area capture" },
+  { id: "memo", label: "Quick memo (coming soon)" },
+  { id: "settings", label: "Settings (coming soon)" },
 ];
 
 function ActionIcon({ action }: { action: ActionId }) {
   if (action === "capture") {
     return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 9V4h5" />
-        <path d="M15 4h5v5" />
-        <path d="M20 15v5h-5" />
-        <path d="M9 20H4v-5" />
-        <rect x="8" y="8" width="8" height="8" />
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1" y="1" width="4" height="2" />
+        <rect x="1" y="1" width="2" height="4" />
+        <rect x="11" y="1" width="4" height="2" />
+        <rect x="13" y="1" width="2" height="4" />
+        <rect x="1" y="13" width="4" height="2" />
+        <rect x="1" y="11" width="2" height="4" />
+        <rect x="11" y="13" width="4" height="2" />
+        <rect x="13" y="11" width="2" height="4" />
+        <rect x="6" y="6" width="4" height="4" />
       </svg>
     );
   }
   if (action === "memo") {
     return (
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M6 4h8l4 4v12H6z" />
-        <path d="M14 4v4h4" />
-        <path d="M9 13h6" />
-        <path d="M9 17h6" />
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="3" y="1" width="10" height="14" />
+        <rect x="4" y="2" width="8" height="2" />
+        <rect x="5" y="6" width="6" height="1" />
+        <rect x="5" y="8" width="5" height="1" />
+        <rect x="5" y="10" width="6" height="1" />
       </svg>
     );
   }
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="3.2" />
-      <path d="M12 2.7v2.1M12 19.2v2.1M21.3 12h-2.1M4.8 12H2.7" />
-      <path d="M18.7 5.3l-1.5 1.5M6.8 17.2l-1.5 1.5M18.7 18.7l-1.5-1.5M6.8 6.8L5.3 5.3" />
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="1" y="2" width="14" height="2" />
+      <rect x="6" y="1" width="2" height="4" />
+      <rect x="1" y="7" width="14" height="2" />
+      <rect x="9" y="6" width="2" height="4" />
+      <rect x="1" y="12" width="14" height="2" />
+      <rect x="4" y="11" width="2" height="4" />
     </svg>
   );
 }
@@ -98,7 +101,6 @@ export function Character() {
   }, []);
 
   const handleClick = useCallback(() => {
-    // Don't handle click if we just finished dragging
     if (isDragging.current) return;
     if (connectionState !== "connected") return;
     if (parchmentVisible) return;
@@ -109,7 +111,6 @@ export function Character() {
 
     const now = Date.now();
     if (now - lastClickRef.current < 400) {
-      // Double-click detected: toggle chat input
       if (chatInputVisible) {
         hideChatInput();
       } else {
@@ -209,23 +210,18 @@ export function Character() {
   }, [menuOpen]);
 
   const spriteUrl = SPRITE_MAP[animation];
-  const offsetX = frame * 128; // 64px frame * 2x scale = 128px per frame
+  const offsetX = frame * 128;
 
   return (
     <div className="character-wrapper" ref={wrapperRef}>
       <div className="character-stage">
-        <div className={`character-radial-menu${menuOpen ? " open" : ""}`} aria-hidden={!menuOpen}>
-          <div className="radial-halo" />
+        <div className={`character-action-row${menuOpen ? " open" : ""}`} aria-hidden={!menuOpen}>
           {MENU_ACTIONS.map((action, index) => {
-            const style = {
-              "--tx": action.tx,
-              "--ty": action.ty,
-              "--delay": menuOpen ? `${index * 45}ms` : "0ms",
-            } as CSSProperties;
+            const style = { "--index": index } as CSSProperties;
             return (
               <button
                 key={action.id}
-                className="radial-btn"
+                className="action-btn"
                 style={style}
                 onClick={() => handleActionClick(action.id)}
                 title={action.label}
