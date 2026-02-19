@@ -7,11 +7,6 @@
   -webkit-user-select: none;
 }
 
-.capture-overlay-display {
-  cursor: default;
-  background: rgba(7, 10, 20, 0.78);
-}
-
 .capture-hint {
   position: fixed;
   top: 24px;
@@ -27,99 +22,10 @@
   pointer-events: none;
 }
 
-.capture-subhint {
-  position: fixed;
-  top: 64px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #d9e4ff;
-  font-size: 11px;
-  letter-spacing: 0.2px;
-  pointer-events: none;
-}
-
 .capture-selection {
   position: fixed;
   border: 2px solid #4da6ff;
   background: rgba(77, 166, 255, 0.2);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
   pointer-events: none;
-}
-
-.display-picker-panel {
-  position: fixed;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -46%);
-  min-width: 320px;
-  min-height: 160px;
-  padding: 18px;
-  border: 2px solid #6c86b4;
-  background: rgba(18, 28, 48, 0.86);
-  border-radius: 12px;
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
-}
-
-.display-picker-loading {
-  color: #f5f7ff;
-  font-size: 12px;
-  text-align: center;
-  padding: 28px 12px;
-}
-
-.display-map {
-  position: relative;
-  margin: 0 auto;
-  background: rgba(8, 14, 26, 0.74);
-  border: 2px solid rgba(124, 154, 202, 0.35);
-  border-radius: 10px;
-  padding: 0;
-}
-
-.display-tile {
-  position: absolute;
-  border: 2px solid #89a8dd;
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(101, 132, 188, 0.42), rgba(68, 97, 155, 0.45));
-  color: #f5f8ff;
-  cursor: pointer;
-  transition: transform 120ms ease, border-color 120ms ease, background-color 120ms ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 4px;
-}
-
-.display-tile:hover,
-.display-tile.hovered {
-  border-color: #d7e6ff;
-  background: linear-gradient(180deg, rgba(120, 156, 220, 0.62), rgba(88, 123, 188, 0.62));
-  transform: scale(1.02);
-}
-
-.display-tile:disabled {
-  opacity: 0.7;
-  cursor: progress;
-}
-
-.display-tile-label {
-  font-family: "Press Start 2P", monospace;
-  font-size: 8px;
-  line-height: 1.4;
-  pointer-events: none;
-}
-
-@media (max-width: 680px) {
-  .display-picker-panel {
-    width: calc(100vw - 24px);
-    min-width: unset;
-    padding: 12px;
-  }
-
-  .display-map {
-    width: 100% !important;
-    height: auto !important;
-    aspect-ratio: 16 / 9;
-  }
 }

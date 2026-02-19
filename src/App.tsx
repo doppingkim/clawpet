@@ -13,18 +13,13 @@ import { useStore } from "./store/useStore";
 
 const windowLabel = getCurrentWindow().label;
 const isParchmentWindow = windowLabel === "parchment";
-const isCaptureWindow =
-  windowLabel === "capture" ||
-  windowLabel === "capture-area" ||
-  windowLabel === "capture-display";
-const captureMode =
-  windowLabel === "capture-display" ? "display" : "area";
+const isCaptureWindow = windowLabel === "capture" || windowLabel === "capture-area";
 
 export default function App() {
   // Parchment window: render standalone parchment page
   if (isParchmentWindow) return <ParchmentPage />;
   // Capture window: render area capture overlay
-  if (isCaptureWindow) return <CaptureOverlay mode={captureMode} />;
+  if (isCaptureWindow) return <CaptureOverlay />;
 
   const connectionState = useStore((s) => s.connectionState);
   const parchmentVisible = useStore((s) => s.parchmentVisible);

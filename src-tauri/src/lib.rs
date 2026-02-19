@@ -285,6 +285,38 @@ async fn capture_screen_display(display_id: u32) -> Result<FetchImageResult, Str
     })
 }
 
+#[tauri::command]
+async fn capture_screen_for_point(x: i32, y: i32) -> Result<FetchImageResult, String> {
+    let screens = screenshots::Screen::all().map_err(|e| format!("Failed to list screens: {e}"))?;
+    if screens.is_empty() {
+        return Err("No display found".to_string());
+    }
+
+    let screen = screens
+        .iter()
+        .find(|screen| {
+            let info = screen.display_info;
+            let right = info.x + info.width as i32;
+            let bottom = info.y + info.height as i32;
+            x >= info.x && x < right && y >= info.y && y < bottom
+        })
+        .or_else(|| screens.first())
+        .ok_or_else(|| "No display found".to_string())?;
+
+    let image = screen
+        .capture()
+        .map_err(|e| format!("Failed to capture screen: {e}"))?;
+    let jpeg_bytes = encode_screen_for_chat(image)?;
+
+    use base64::Engine;
+    let base64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_bytes);
+
+    Ok(FetchImageResult {
+        base64,
+        mime_type: "image/jpeg".to_string(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -296,7 +328,8 @@ pub fn run() {
             read_image_file,
             capture_screen_region,
             list_capture_displays,
-            capture_screen_display
+            capture_screen_display,
+            capture_screen_for_point
         ])
         .setup(|app| {
             // Build tray menu

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useStore } from "../store/useStore";
 import { useAnimation } from "../hooks/useAnimation";
 import { useDrag } from "../hooks/useDrag";
@@ -18,6 +19,7 @@ const DEFAULT_NAME = "OpenClaw";
 
 type ActionId = "capture-area" | "capture-display" | "settings";
 type OpenClawIdentity = { name?: string | null };
+type CaptureResult = { base64: string; mime_type: string };
 
 const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
   { id: "capture-area", label: "Area capture" },
@@ -69,6 +71,7 @@ export function Character() {
   const hideChatInput = useStore((s) => s.hideChatInput);
   const chatInputVisible = useStore((s) => s.chatInputVisible);
   const showSpeechBubble = useStore((s) => s.showSpeechBubble);
+  const setAttachedImage = useStore((s) => s.setAttachedImage);
   const connectionState = useStore((s) => s.connectionState);
   const parchmentVisible = useStore((s) => s.parchmentVisible);
   const frame = useAnimation(animation);
@@ -78,22 +81,19 @@ export function Character() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [characterName, setCharacterName] = useState(DEFAULT_NAME);
 
-  const openCaptureWindow = useCallback(async (mode: "area" | "display") => {
-    const label = mode === "area" ? "capture-area" : "capture-display";
-    const otherLabel = mode === "area" ? "capture-display" : "capture-area";
-
-    const existingOther = await WebviewWindow.getByLabel(otherLabel);
+  const openCaptureWindow = useCallback(async () => {
+    const existingOther = await WebviewWindow.getByLabel("capture-display");
     if (existingOther) {
       await existingOther.close();
     }
 
-    const existing = await WebviewWindow.getByLabel(label);
+    const existing = await WebviewWindow.getByLabel("capture-area");
     if (existing) {
       await existing.setFocus();
       return;
     }
 
-    new WebviewWindow(label, {
+    new WebviewWindow("capture-area", {
       url: "/",
       title: "Capture",
       decorations: false,
@@ -156,23 +156,37 @@ export function Character() {
   );
 
   const handleActionClick = useCallback(
-    (action: ActionId) => {
+    async (action: ActionId) => {
       setMenuOpen(false);
       if (action === "capture-area") {
         if (!ENABLE_AREA_CAPTURE) {
           showSpeechBubble("Area capture is disabled");
           return;
         }
-        void openCaptureWindow("area");
+        void openCaptureWindow();
         return;
       }
       if (action === "capture-display") {
-        void openCaptureWindow("display");
+        try {
+          const win = getCurrentWindow();
+          const [pos, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
+          const centerX = Math.round(pos.x + size.width / 2);
+          const centerY = Math.round(pos.y + size.height / 2);
+          const result = await invoke<CaptureResult>("capture_screen_for_point", {
+            x: centerX,
+            y: centerY,
+          });
+          const dataUrl = `data:${result.mime_type};base64,${result.base64}`;
+          setAttachedImage({ dataUrl, mimeType: result.mime_type });
+          showChatInput();
+        } catch (err) {
+          showSpeechBubble(String(err));
+        }
         return;
       }
       showSpeechBubble("Coming soon");
     },
-    [openCaptureWindow, showSpeechBubble],
+    [openCaptureWindow, setAttachedImage, showChatInput, showSpeechBubble],
   );
 
   useEffect(() => {
@@ -234,7 +248,9 @@ export function Character() {
                 key={action.id}
                 className="action-btn"
                 style={style}
-                onClick={() => handleActionClick(action.id)}
+                onClick={() => {
+                  void handleActionClick(action.id);
+                }}
                 title={action.label}
               >
                 <ActionIcon action={action.id} />
