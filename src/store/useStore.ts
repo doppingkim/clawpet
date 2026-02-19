@@ -24,6 +24,8 @@ interface ClawGotchiState {
   // UI
   speechBubbleVisible: boolean;
   speechBubbleText: string;
+  externalLetterQueue: string[];
+  externalLetterShowingContent: boolean;
   parchmentVisible: boolean;
   parchmentText: string;
   characterAnimation: AnimationState;
@@ -45,6 +47,9 @@ interface ClawGotchiState {
 
   showSpeechBubble: (text: string) => void;
   hideSpeechBubble: () => void;
+  enqueueExternalLetter: (text: string) => void;
+  openExternalLetterContent: () => void;
+  consumeExternalLetter: () => void;
   showParchment: (text: string) => void;
   hideParchment: () => void;
   setCharacterAnimation: (anim: AnimationState) => void;
@@ -71,6 +76,8 @@ export const useStore = create<ClawGotchiState>((set) => ({
   // UI
   speechBubbleVisible: false,
   speechBubbleText: "",
+  externalLetterQueue: [],
+  externalLetterShowingContent: false,
   parchmentVisible: false,
   parchmentText: "",
   characterAnimation: "idle",
@@ -92,6 +99,27 @@ export const useStore = create<ClawGotchiState>((set) => ({
 
   showSpeechBubble: (text) => set({ speechBubbleVisible: true, speechBubbleText: text }),
   hideSpeechBubble: () => set({ speechBubbleVisible: false, speechBubbleText: "" }),
+  enqueueExternalLetter: (text) =>
+    set((state) => ({
+      externalLetterQueue: [...state.externalLetterQueue, text],
+    })),
+  openExternalLetterContent: () =>
+    set((state) =>
+      state.externalLetterQueue.length > 0
+        ? { externalLetterShowingContent: true }
+        : {},
+    ),
+  consumeExternalLetter: () =>
+    set((state) => {
+      if (state.externalLetterQueue.length === 0) {
+        return {};
+      }
+      const [, ...rest] = state.externalLetterQueue;
+      return {
+        externalLetterQueue: rest,
+        externalLetterShowingContent: false,
+      };
+    }),
   showParchment: (text) => {
     localStorage.setItem("clawgotchi-parchment-text", text);
     set({ parchmentVisible: true, parchmentText: text });

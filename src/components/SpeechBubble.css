@@ -71,6 +71,18 @@
   color: #0044aa;
 }
 
+.speech-bubble-mail-hint {
+  display: block;
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: #555;
+  font-family: "Press Start 2P", monospace;
+  font-size: 8px;
+  padding: 0;
+  text-transform: lowercase;
+}
+
 .speech-bubble-tail {
   position: absolute;
   bottom: -10px;

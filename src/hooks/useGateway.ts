@@ -22,6 +22,7 @@ export function useGateway() {
   const setCharacterAnimation = useStore((s) => s.setCharacterAnimation);
   const appendStreamingText = useStore((s) => s.appendStreamingText);
   const showSpeechBubble = useStore((s) => s.showSpeechBubble);
+  const enqueueExternalLetter = useStore((s) => s.enqueueExternalLetter);
   const setChatRunId = useStore((s) => s.setChatRunId);
   const setLastResponse = useStore((s) => s.setLastResponse);
   const setChatLoading = useStore((s) => s.setChatLoading);
@@ -129,6 +130,17 @@ export function useGateway() {
       } else if (payload.state === "final") {
         const text = extractText(payload.message);
         const finalText = text ?? store.streamingText;
+        const isFromActiveRun =
+          !!store.chatRunId && !!payload.runId && payload.runId === store.chatRunId;
+        const isExternalReply = !isFromActiveRun && !store.chatRunId;
+
+        if (isExternalReply && finalText) {
+          enqueueExternalLetter(finalText);
+          setCharacterAnimation("idle");
+          setChatLoading(false);
+          return;
+        }
+
         if (finalText) {
           setLastResponse(finalText);
           showSpeechBubble(finalText);
@@ -169,6 +181,7 @@ export function useGateway() {
     setCharacterAnimation,
     appendStreamingText,
     showSpeechBubble,
+    enqueueExternalLetter,
     setChatRunId,
     setLastResponse,
     setChatLoading,
