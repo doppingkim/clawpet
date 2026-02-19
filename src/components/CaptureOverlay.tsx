@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { emit } from "@tauri-apps/api/event";
+import { emitTo } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./CaptureOverlay.css";
 
@@ -22,6 +22,13 @@ export function CaptureOverlay() {
   const [startPoint, setStartPoint] = useState<Point | null>(null);
   const [currentPoint, setCurrentPoint] = useState<Point | null>(null);
   const [busy, setBusy] = useState(false);
+  const startRef = useRef<Point | null>(null);
+  const currentRef = useRef<Point | null>(null);
+  const busyRef = useRef(false);
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
 
   const selectionRect = useMemo(() => {
     if (!startPoint || !currentPoint) return null;
@@ -31,6 +38,11 @@ export function CaptureOverlay() {
   const closeWindow = useCallback(async () => {
     const win = getCurrentWindow();
     await win.close();
+  }, []);
+
+  const hideWindow = useCallback(async () => {
+    const win = getCurrentWindow();
+    await win.hide();
   }, []);
 
   useEffect(() => {
@@ -49,6 +61,19 @@ export function CaptureOverlay() {
     };
   }, [closeWindow]);
 
+  const emitCaptureComplete = useCallback(async (result: CaptureResult) => {
+    const payload = {
+      base64: result.base64,
+      mimeType: result.mime_type,
+    };
+    await emitTo("main", "clawgotchi://capture-complete", payload);
+  }, []);
+
+  const emitCaptureError = useCallback(async (message: string) => {
+    const payload = { message };
+    await emitTo("main", "clawgotchi://capture-error", payload);
+  }, []);
+
   const finishCapture = useCallback(
     async (rect: Rect) => {
       const win = getCurrentWindow();
@@ -62,55 +87,96 @@ export function CaptureOverlay() {
       };
 
       const result = await invoke<CaptureResult>("capture_screen_region", { region });
-      await emit("clawgotchi://capture-complete", {
-        base64: result.base64,
-        mimeType: result.mime_type,
-      });
+      await emitCaptureComplete(result);
     },
-    [],
+    [emitCaptureComplete],
   );
 
-  const handleMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (event.button !== 0 || busy) return;
-      const next = { x: event.clientX, y: event.clientY };
-      setStartPoint(next);
-      setCurrentPoint(next);
-    },
-    [busy],
-  );
-
-  const handleMouseMove = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!startPoint || busy) return;
-      setCurrentPoint({ x: event.clientX, y: event.clientY });
-    },
-    [startPoint, busy],
-  );
-
-  const handleMouseUp = useCallback(async () => {
-    if (!startPoint || !currentPoint || busy) return;
-
-    const rect = toRect(startPoint, currentPoint);
+  const clearDrag = useCallback(() => {
+    startRef.current = null;
+    currentRef.current = null;
     setStartPoint(null);
     setCurrentPoint(null);
+  }, []);
+
+  const updateCurrentPoint = useCallback((point: Point) => {
+    currentRef.current = point;
+    setCurrentPoint(point);
+  }, []);
+
+  const finishDragCapture = useCallback(async () => {
+    const start = startRef.current;
+    const current = currentRef.current;
+    if (!start || !current || busyRef.current) return;
+
+    const rect = toRect(start, current);
+    clearDrag();
 
     if (rect.width < MIN_CAPTURE_SIZE || rect.height < MIN_CAPTURE_SIZE) {
       await closeWindow();
       return;
     }
 
+    busyRef.current = true;
     setBusy(true);
     try {
+      // Hide first so the overlay disappears immediately while capture/encode runs.
+      await hideWindow();
       await finishCapture(rect);
     } catch (err) {
-      await emit("clawgotchi://capture-error", {
-        message: String(err),
-      });
+      await emitCaptureError(String(err));
     } finally {
       await closeWindow();
     }
-  }, [startPoint, currentPoint, busy, closeWindow, finishCapture]);
+  }, [clearDrag, closeWindow, emitCaptureError, finishCapture, hideWindow]);
+
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || busyRef.current) return;
+      const next = { x: event.clientX, y: event.clientY };
+      startRef.current = next;
+      currentRef.current = next;
+      setStartPoint(next);
+      setCurrentPoint(next);
+    },
+    [],
+  );
+
+  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (!startRef.current || busyRef.current) return;
+    updateCurrentPoint({ x: event.clientX, y: event.clientY });
+  }, [updateCurrentPoint]);
+
+  const handleMouseUp = useCallback(async () => {
+    await finishDragCapture();
+  }, [finishDragCapture]);
+
+  useEffect(() => {
+    const onWindowMouseMove = (event: MouseEvent) => {
+      if (!startRef.current || busyRef.current) return;
+      updateCurrentPoint({ x: event.clientX, y: event.clientY });
+    };
+
+    const onWindowMouseUp = () => {
+      if (!startRef.current || busyRef.current) return;
+      void finishDragCapture();
+    };
+
+    const onBlur = () => {
+      if (!startRef.current || busyRef.current) return;
+      clearDrag();
+      void closeWindow();
+    };
+
+    window.addEventListener("mousemove", onWindowMouseMove, true);
+    window.addEventListener("mouseup", onWindowMouseUp, true);
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("mousemove", onWindowMouseMove, true);
+      window.removeEventListener("mouseup", onWindowMouseUp, true);
+      window.removeEventListener("blur", onBlur);
+    };
+  }, [clearDrag, closeWindow, finishDragCapture, updateCurrentPoint]);
 
   return (
     <div
