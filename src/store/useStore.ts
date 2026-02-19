@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 export type AnimationState = "idle" | "talking" | "thinking" | "sleeping";
 export type ConnectionState = "disconnected" | "connecting" | "connected";
@@ -79,8 +80,45 @@ export const useStore = create<ClawGotchiState>((set) => ({
 
   showSpeechBubble: (text) => set({ speechBubbleVisible: true, speechBubbleText: text }),
   hideSpeechBubble: () => set({ speechBubbleVisible: false, speechBubbleText: "" }),
-  showParchment: (text) => set({ parchmentVisible: true, parchmentText: text }),
-  hideParchment: () => set({ parchmentVisible: false, parchmentText: "" }),
+  showParchment: (text) => {
+    localStorage.setItem("clawgotchi-parchment-text", text);
+    set({ parchmentVisible: true, parchmentText: text });
+
+    // Open parchment in a separate window, centered on screen
+    (async () => {
+      const existing = await WebviewWindow.getByLabel("parchment");
+      if (existing) {
+        await existing.setFocus();
+        return;
+      }
+
+      const win = new WebviewWindow("parchment", {
+        url: "/",
+        center: true,
+        width: 500,
+        height: 500,
+        decorations: false,
+        transparent: true,
+        alwaysOnTop: true,
+        resizable: false,
+        shadow: false,
+      });
+
+      win.once("tauri://destroyed", () => {
+        set({ parchmentVisible: false, speechBubbleVisible: false, speechBubbleText: "" });
+      });
+    })();
+  },
+  hideParchment: () => {
+    set({ parchmentVisible: false, parchmentText: "" });
+    // Close the parchment window if open
+    (async () => {
+      const existing = await WebviewWindow.getByLabel("parchment");
+      if (existing) {
+        await existing.close();
+      }
+    })();
+  },
   setCharacterAnimation: (characterAnimation) => set({ characterAnimation }),
   setLastResponse: (lastResponse) => set({ lastResponse }),
 }));

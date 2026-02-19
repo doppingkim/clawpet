@@ -1,18 +1,24 @@
 {
   "identifier": "default",
   "description": "ClawGotchi default capabilities",
-  "windows": ["main"],
+  "windows": ["main", "parchment"],
   "permissions": [
     "core:default",
+    "core:window:allow-create",
+    "core:window:allow-close",
+    "core:window:allow-destroy",
     "core:window:allow-start-dragging",
     "core:window:allow-set-position",
     "core:window:allow-outer-position",
+    "core:window:allow-outer-size",
+    "core:window:allow-scale-factor",
     "core:window:allow-show",
     "core:window:allow-hide",
     "core:window:allow-set-size",
     "core:window:allow-center",
     "core:window:allow-set-focus",
     "core:window:allow-is-visible",
+    "core:webview:allow-create-webview-window",
     "core:tray:default",
     "window-state:default"
   ]
