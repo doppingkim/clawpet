@@ -39,6 +39,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
+  z-index: 3;
   background: #8b6914;
   color: #f5e6bf;
   border: 2px solid #5d430a;

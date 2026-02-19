@@ -36,7 +36,15 @@ export function HistoryPage() {
   }, [entries.length]);
 
   const handleClose = useCallback(() => {
-    void getCurrentWindow().close();
+    const closeAsync = async () => {
+      const win = getCurrentWindow();
+      try {
+        await win.close();
+      } catch {
+        await win.hide();
+      }
+    };
+    void closeAsync();
   }, []);
 
   return (
@@ -49,7 +57,7 @@ export function HistoryPage() {
 
         <div className="history-list">
           {entries.length === 0 && (
-            <div className="history-empty">아직 ClawGotchi 대화내역이 없습니다.</div>
+            <div className="history-empty">No ClawGotchi conversation history yet.</div>
           )}
 
           {entries.map((entry) => (
