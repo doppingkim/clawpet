@@ -30,7 +30,7 @@ ClawPet sits on top of your desktop, connects to OpenClaw Gateway over WebSocket
 
 1. OpenClaw local on same machine: supported
 2. OpenClaw in WSL2 while ClawPet runs on Windows: supported
-3. OpenClaw on remote VPS/LAN: supported (use explicit `OPENCLAW_GATEWAY_URL` and token)
+3. OpenClaw on remote VPS/LAN: supported over `wss://` (use explicit `OPENCLAW_GATEWAY_URL` and token)
 
 ## Runtime Requirements
 
@@ -81,6 +81,11 @@ ClawPet reads config in this order:
 1. Environment variables
 2. Explicit path variables
 3. Auto-discovered user config files
+
+Connection policy in release build CSP:
+
+- local gateway: `ws://127.0.0.1:*` / `ws://localhost:*`
+- remote gateway: `wss://*` only
 
 ### Environment variables
 

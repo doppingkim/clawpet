@@ -17,7 +17,10 @@ Thumbs.db
 
 # Env files
 .env
-.env.local
+.env.*
+!.env.example
+!.env.sample
+!.env.template
 
 # Tauri
 src-tauri/WixTools/
