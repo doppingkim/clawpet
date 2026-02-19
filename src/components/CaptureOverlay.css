@@ -1,0 +1,32 @@
+.capture-overlay {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.22);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.capture-hint {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(20, 20, 20, 0.82);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  pointer-events: none;
+}
+
+.capture-selection {
+  position: fixed;
+  border: 2px solid #4da6ff;
+  background: rgba(77, 166, 255, 0.2);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+

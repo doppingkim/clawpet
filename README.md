@@ -12,6 +12,8 @@ ClawGotchi stays on top of your desktop, connects to an OpenClaw Gateway over We
   - file drag & drop
   - browser image drag & drop (URL/HTML/file)
   - clipboard paste
+- Right-click radial action menu on character (capture + dummy actions)
+- Rectangle area capture -> immediate chat attachment
 - 10MB image input limit in ClawGotchi
 - Speech bubble + optional parchment window for long responses
 
@@ -75,6 +77,7 @@ Use `.env` or process env during dev/build:
 - `VITE_ENABLE_IMAGE_DROP=true|false`
 - `VITE_ENABLE_CLIPBOARD_IMAGE=true|false`
 - `VITE_ENABLE_PARCHMENT=true|false`
+- `VITE_ENABLE_AREA_CAPTURE=true|false`
 
 This keeps features modular so users can disable unwanted behavior without code edits.
 
@@ -83,6 +86,13 @@ This keeps features modular so users can disable unwanted behavior without code 
 - Supported image types: `png`, `jpg`, `jpeg`, `gif`, `webp`, `bmp`
 - ClawGotchi input limit: 10MB
 - If your OpenClaw Gateway still enforces 5MB, increase Gateway attachment limits as well.
+
+## Area capture flow
+
+1. Right-click the character.
+2. Click the crop action button (`✂️`) in the radial menu.
+3. Drag a rectangle on screen.
+4. On mouse-up, capture is attached immediately and chat input opens.
 
 ## Cross-platform setup notes
 

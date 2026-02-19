@@ -1,5 +1,7 @@
 mod config_reader;
 
+use std::io::Cursor;
+
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
@@ -14,6 +16,14 @@ struct FetchImageResult {
 }
 
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024; // 10MB
+
+#[derive(serde::Deserialize)]
+struct CaptureRegion {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+}
 
 #[tauri::command]
 async fn fetch_image_url(url: String) -> Result<FetchImageResult, String> {
@@ -106,11 +116,85 @@ async fn read_image_file(path: String) -> Result<FetchImageResult, String> {
     Ok(FetchImageResult { base64, mime_type })
 }
 
+#[tauri::command]
+async fn capture_screen_region(region: CaptureRegion) -> Result<FetchImageResult, String> {
+    if region.width == 0 || region.height == 0 {
+        return Err("Capture area is empty".to_string());
+    }
+
+    let screens = screenshots::Screen::all().map_err(|e| format!("Failed to list screens: {e}"))?;
+    if screens.is_empty() {
+        return Err("No display found".to_string());
+    }
+
+    let center_x = region.x.saturating_add((region.width / 2) as i32);
+    let center_y = region.y.saturating_add((region.height / 2) as i32);
+
+    let screen = screens
+        .iter()
+        .find(|screen| {
+            let info = screen.display_info;
+            let right = info.x + info.width as i32;
+            let bottom = info.y + info.height as i32;
+            center_x >= info.x && center_x < right && center_y >= info.y && center_y < bottom
+        })
+        .or_else(|| screens.first())
+        .ok_or_else(|| "No display found".to_string())?;
+
+    let info = screen.display_info;
+    let screen_right = info.x + info.width as i32;
+    let screen_bottom = info.y + info.height as i32;
+
+    let left = region.x.clamp(info.x, screen_right.saturating_sub(1));
+    let top = region.y.clamp(info.y, screen_bottom.saturating_sub(1));
+
+    let max_width = (screen_right - left).max(0) as u32;
+    let max_height = (screen_bottom - top).max(0) as u32;
+    let width = region.width.min(max_width);
+    let height = region.height.min(max_height);
+
+    if width == 0 || height == 0 {
+        return Err("Capture area is outside of the display".to_string());
+    }
+
+    let rel_x = left - info.x;
+    let rel_y = top - info.y;
+
+    let image = screen
+        .capture_area(rel_x, rel_y, width, height)
+        .map_err(|e| format!("Failed to capture screen: {e}"))?;
+
+    let mut png_bytes = Vec::new();
+    {
+        let mut cursor = Cursor::new(&mut png_bytes);
+        image::DynamicImage::ImageRgba8(image)
+            .write_to(&mut cursor, image::ImageFormat::Png)
+            .map_err(|e| format!("Failed to encode screenshot: {e}"))?;
+    }
+
+    if png_bytes.len() > MAX_IMAGE_BYTES {
+        return Err("Image exceeds 10MB limit".to_string());
+    }
+
+    use base64::Engine;
+    let base64 = base64::engine::general_purpose::STANDARD.encode(&png_bytes);
+
+    Ok(FetchImageResult {
+        base64,
+        mime_type: "image/png".to_string(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![config_reader::read_openclaw_config, fetch_image_url, read_image_file])
+        .invoke_handler(tauri::generate_handler![
+            config_reader::read_openclaw_config,
+            fetch_image_url,
+            read_image_file,
+            capture_screen_region
+        ])
         .setup(|app| {
             // Build tray menu
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
