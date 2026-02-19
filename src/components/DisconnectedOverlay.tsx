@@ -13,7 +13,7 @@ export function DisconnectedOverlay() {
     >
       <div className="disconnected-character">
         <img
-          src="/sprites/clawgotchi-sleep.png"
+          src="/sprites/clawpet-sleep.png"
           alt="sleeping"
           className="disconnected-sprite"
         />
@@ -22,3 +22,4 @@ export function DisconnectedOverlay() {
     </div>
   );
 }
+

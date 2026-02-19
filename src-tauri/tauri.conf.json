@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicedoc/tauri/dev/crates/tauri-utils/schema.json",
-  "productName": "ClawGotchi",
+  "productName": "ClawPet",
   "version": "0.1.0",
-  "identifier": "com.clawgotchi.desktop",
+  "identifier": "com.clawpet.desktop",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "ClawGotchi",
+        "title": "ClawPet",
         "width": 300,
         "height": 350,
         "resizable": false,
@@ -41,3 +41,4 @@
     ]
   }
 }
+

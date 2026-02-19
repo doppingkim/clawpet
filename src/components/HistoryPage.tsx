@@ -32,7 +32,7 @@ export function HistoryPage() {
   }, []);
 
   const titleText = useMemo(() => {
-    return entries.length > 0 ? `ClawGotchi Conversations (${entries.length})` : "ClawGotchi Conversations";
+    return entries.length > 0 ? `ClawPet Conversations (${entries.length})` : "ClawPet Conversations";
   }, [entries.length]);
 
   const handleClose = useCallback(() => {
@@ -57,7 +57,7 @@ export function HistoryPage() {
 
         <div className="history-list">
           {entries.length === 0 && (
-            <div className="history-empty">No ClawGotchi conversation history yet.</div>
+            <div className="history-empty">No ClawPet conversation history yet.</div>
           )}
 
           {entries.map((entry) => (
@@ -71,3 +71,4 @@ export function HistoryPage() {
     </div>
   );
 }
+

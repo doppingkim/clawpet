@@ -25,7 +25,7 @@
     radial-gradient(circle at 55% 18%, rgba(165, 255, 170, 0.2), rgba(165, 255, 170, 0) 56%);
   filter: blur(6px);
   opacity: 0.78;
-  animation: clawgotchi-aura-shift 9s ease-in-out infinite alternate;
+  animation: clawpet-aura-shift 9s ease-in-out infinite alternate;
 }
 
 .character-stage::after {
@@ -43,7 +43,7 @@
     rgba(112, 255, 230, 0) 78%
   );
   mix-blend-mode: screen;
-  animation: clawgotchi-sheen 7s ease-in-out infinite;
+  animation: clawpet-sheen 7s ease-in-out infinite;
 }
 
 .character {
@@ -61,7 +61,7 @@
   filter:
     drop-shadow(0 0 2px rgba(95, 255, 110, 0.22))
     drop-shadow(0 0 7px rgba(95, 255, 110, 0.14));
-  animation: clawgotchi-glow-pulse 6s ease-in-out infinite;
+  animation: clawpet-glow-pulse 6s ease-in-out infinite;
   transition: filter 220ms ease;
 }
 
@@ -91,7 +91,7 @@
       rgba(180, 255, 238, 0.06)
     );
   background-size: 220% 220%;
-  animation: clawgotchi-nameplate-gradient 8s ease-in-out infinite;
+  animation: clawpet-nameplate-gradient 8s ease-in-out infinite;
 }
 
 .character-action-row {
@@ -166,7 +166,7 @@
   fill: currentColor;
 }
 
-@keyframes clawgotchi-aura-shift {
+@keyframes clawpet-aura-shift {
   0% {
     transform: translate(-2px, -1px) scale(0.98);
     opacity: 0.72;
@@ -181,7 +181,7 @@
   }
 }
 
-@keyframes clawgotchi-sheen {
+@keyframes clawpet-sheen {
   0% {
     transform: translateX(-4px);
     opacity: 0.58;
@@ -196,7 +196,7 @@
   }
 }
 
-@keyframes clawgotchi-glow-pulse {
+@keyframes clawpet-glow-pulse {
   0% {
     filter:
       drop-shadow(0 0 2px rgba(95, 255, 110, 0.22))
@@ -214,7 +214,7 @@
   }
 }
 
-@keyframes clawgotchi-nameplate-gradient {
+@keyframes clawpet-nameplate-gradient {
   0% {
     background-position: 0% 45%;
   }
@@ -225,3 +225,4 @@
     background-position: 0% 45%;
   }
 }
+

@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "ClawGotchi default capabilities",
+  "description": "ClawPet default capabilities",
   "windows": ["main", "parchment", "capture", "capture-area", "history"],
   "permissions": [
     "core:default",
@@ -23,3 +23,4 @@
     "window-state:default"
   ]
 }
+

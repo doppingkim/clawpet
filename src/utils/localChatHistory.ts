@@ -7,7 +7,7 @@ export type LocalChatEntry = {
   timestamp: number;
 };
 
-const STORAGE_KEY = "clawgotchi-local-chat-history-v1";
+const STORAGE_KEY = "clawpet-local-chat-history-v1";
 const MAX_ENTRIES = 600;
 
 function createId(): string {
@@ -75,3 +75,4 @@ export function appendLocalChatHistory(role: LocalChatRole, text: string): Local
   writeLocalChatHistory(capped);
   return next;
 }
+

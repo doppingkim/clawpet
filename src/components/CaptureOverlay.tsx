@@ -26,6 +26,7 @@ export function CaptureOverlay() {
   const startRef = useRef<Point | null>(null);
   const currentRef = useRef<Point | null>(null);
   const busyRef = useRef(false);
+  const pointerIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     busyRef.current = busy;
@@ -67,12 +68,12 @@ export function CaptureOverlay() {
       base64: result.base64,
       mimeType: result.mime_type,
     };
-    await emitTo("main", "clawgotchi://capture-complete", payload);
+    await emitTo("main", "clawpet://capture-complete", payload);
   }, []);
 
   const emitCaptureError = useCallback(async (message: string) => {
     const payload = { message };
-    await emitTo("main", "clawgotchi://capture-error", payload);
+    await emitTo("main", "clawpet://capture-error", payload);
   }, []);
 
   const resolveRegion = useCallback(
@@ -101,6 +102,7 @@ export function CaptureOverlay() {
   const clearDrag = useCallback(() => {
     startRef.current = null;
     currentRef.current = null;
+    pointerIdRef.current = null;
     setStartPoint(null);
     setCurrentPoint(null);
   }, []);
@@ -137,9 +139,11 @@ export function CaptureOverlay() {
     }
   }, [clearDrag, closeWindow, emitCaptureError, finishCapture, hideWindow, resolveRegion]);
 
-  const handleMouseDown = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
       if (event.button !== 0 || busyRef.current) return;
+      pointerIdRef.current = event.pointerId;
+      event.currentTarget.setPointerCapture(event.pointerId);
       const next = { x: event.clientX, y: event.clientY };
       startRef.current = next;
       currentRef.current = next;
@@ -149,50 +153,65 @@ export function CaptureOverlay() {
     [],
   );
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+  const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (!startRef.current || busyRef.current) return;
+    if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
     updateCurrentPoint({ x: event.clientX, y: event.clientY });
   }, [updateCurrentPoint]);
 
-  const handleMouseUp = useCallback(async () => {
-    await finishDragCapture();
+  const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // ignore release errors when capture is already lost/closed
+    }
+    pointerIdRef.current = null;
+    void finishDragCapture();
   }, [finishDragCapture]);
 
+  const handlePointerCancel = useCallback(() => {
+    pointerIdRef.current = null;
+    clearDrag();
+    void closeWindow();
+  }, [clearDrag, closeWindow]);
+
   useEffect(() => {
-    const onWindowMouseMove = (event: MouseEvent) => {
+    const onWindowPointerMove = (event: PointerEvent) => {
       if (!startRef.current || busyRef.current) return;
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
       updateCurrentPoint({ x: event.clientX, y: event.clientY });
     };
 
-    const onWindowMouseUp = () => {
+    const onWindowPointerUp = (event: PointerEvent) => {
       if (!startRef.current || busyRef.current) return;
+      if (pointerIdRef.current !== null && event.pointerId !== pointerIdRef.current) return;
+      pointerIdRef.current = null;
       void finishDragCapture();
     };
 
     const onBlur = () => {
       if (!startRef.current || busyRef.current) return;
-      clearDrag();
-      void closeWindow();
+      void finishDragCapture();
     };
 
-    window.addEventListener("mousemove", onWindowMouseMove, true);
-    window.addEventListener("mouseup", onWindowMouseUp, true);
+    window.addEventListener("pointermove", onWindowPointerMove, true);
+    window.addEventListener("pointerup", onWindowPointerUp, true);
     window.addEventListener("blur", onBlur);
     return () => {
-      window.removeEventListener("mousemove", onWindowMouseMove, true);
-      window.removeEventListener("mouseup", onWindowMouseUp, true);
+      window.removeEventListener("pointermove", onWindowPointerMove, true);
+      window.removeEventListener("pointerup", onWindowPointerUp, true);
       window.removeEventListener("blur", onBlur);
     };
-  }, [clearDrag, closeWindow, finishDragCapture, updateCurrentPoint]);
+  }, [finishDragCapture, updateCurrentPoint]);
 
   return (
     <div
       className="capture-overlay"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={() => {
-        void handleMouseUp();
-      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
     >
       <div className="capture-hint">Drag to capture area</div>
       {selectionRect && (
@@ -209,3 +228,4 @@ export function CaptureOverlay() {
     </div>
   );
 }
+

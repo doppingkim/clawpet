@@ -8,10 +8,10 @@ import { useDrag } from "../hooks/useDrag";
 import "./Character.css";
 
 const SPRITE_MAP = {
-  idle: "/sprites/clawgotchi-idle.png",
-  talking: "/sprites/clawgotchi-talk.png",
-  thinking: "/sprites/clawgotchi-think.png",
-  sleeping: "/sprites/clawgotchi-sleep.png",
+  idle: "/sprites/clawpet-idle.png",
+  talking: "/sprites/clawpet-talk.png",
+  thinking: "/sprites/clawpet-think.png",
+  sleeping: "/sprites/clawpet-sleep.png",
 };
 
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
@@ -88,8 +88,7 @@ export function Character() {
 
     const existing = await WebviewWindow.getByLabel("capture-area");
     if (existing) {
-      await existing.setFocus();
-      return;
+      await existing.close();
     }
 
     new WebviewWindow("capture-area", {
@@ -303,3 +302,4 @@ export function Character() {
     </div>
   );
 }
+

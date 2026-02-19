@@ -310,7 +310,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "clawgotchi"
+name = "clawpet"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",

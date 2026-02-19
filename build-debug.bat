@@ -4,7 +4,7 @@ if errorlevel 1 (
     echo Failed to set up VS environment
     exit /b 1
 )
-cd /d C:\clawgotchi\clawgotchi
+cd /d "%~dp0"
 set PATH=%USERPROFILE%\.cargo\bin;%PATH%
 npx tauri build --debug
 if errorlevel 1 (
@@ -12,3 +12,4 @@ if errorlevel 1 (
     exit /b 1
 )
 echo Debug build succeeded!
+

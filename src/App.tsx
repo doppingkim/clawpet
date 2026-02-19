@@ -49,7 +49,7 @@ export default function App() {
       const unlistenCapture = await listen<{
         base64?: string;
         mimeType?: string;
-      }>("clawgotchi://capture-complete", (event) => {
+      }>("clawpet://capture-complete", (event) => {
         const base64 = event.payload?.base64 ?? "";
         const mimeType = event.payload?.mimeType ?? "image/png";
         if (!base64) return;
@@ -59,7 +59,7 @@ export default function App() {
       });
 
       const unlistenError = await listen<{ message?: string }>(
-        "clawgotchi://capture-error",
+        "clawpet://capture-error",
         (event) => {
           const msg = event.payload?.message ?? "Failed to capture area";
           showSpeechBubble(msg);
@@ -100,3 +100,4 @@ export default function App() {
     </>
   );
 }
+

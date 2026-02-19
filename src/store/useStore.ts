@@ -4,7 +4,7 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 export type AnimationState = "idle" | "talking" | "thinking" | "sleeping";
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 
-interface ClawGotchiState {
+interface ClawPetState {
   // Connection
   connectionState: ConnectionState;
   gatewayUrl: string;
@@ -56,7 +56,7 @@ interface ClawGotchiState {
   setLastResponse: (text: string | null) => void;
 }
 
-export const useStore = create<ClawGotchiState>((set) => ({
+export const useStore = create<ClawPetState>((set) => ({
   // Connection
   connectionState: "disconnected",
   gatewayUrl: "ws://127.0.0.1:18789",
@@ -121,7 +121,7 @@ export const useStore = create<ClawGotchiState>((set) => ({
       };
     }),
   showParchment: (text) => {
-    localStorage.setItem("clawgotchi-parchment-text", text);
+    localStorage.setItem("clawpet-parchment-text", text);
     set({ parchmentVisible: true, parchmentText: text });
 
     // Open parchment in a separate window, centered on screen
@@ -162,3 +162,4 @@ export const useStore = create<ClawGotchiState>((set) => ({
   setCharacterAnimation: (characterAnimation) => set({ characterAnimation }),
   setLastResponse: (lastResponse) => set({ lastResponse }),
 }));
+

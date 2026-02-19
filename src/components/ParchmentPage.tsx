@@ -5,7 +5,7 @@ import "./Parchment.css";
 
 export function ParchmentPage() {
   const [text] = useState(
-    () => localStorage.getItem("clawgotchi-parchment-text") || "",
+    () => localStorage.getItem("clawpet-parchment-text") || "",
   );
 
   const handleClose = useCallback(() => {
@@ -23,3 +23,4 @@ export function ParchmentPage() {
     </div>
   );
 }
+
