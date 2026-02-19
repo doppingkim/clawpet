@@ -13,6 +13,39 @@
   height: 128px;
 }
 
+.character-stage::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 26% 28%, rgba(112, 255, 120, 0.42), rgba(112, 255, 120, 0) 58%),
+    radial-gradient(circle at 72% 62%, rgba(80, 220, 255, 0.28), rgba(80, 220, 255, 0) 52%),
+    radial-gradient(circle at 55% 18%, rgba(165, 255, 170, 0.2), rgba(165, 255, 170, 0) 56%);
+  filter: blur(6px);
+  opacity: 0.78;
+  animation: clawgotchi-aura-shift 9s ease-in-out infinite alternate;
+}
+
+.character-stage::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  z-index: 2;
+  pointer-events: none;
+  border-radius: 4px;
+  background: linear-gradient(
+    125deg,
+    rgba(127, 255, 138, 0.18),
+    rgba(127, 255, 138, 0) 28%,
+    rgba(112, 255, 230, 0.14) 52%,
+    rgba(112, 255, 230, 0) 78%
+  );
+  mix-blend-mode: screen;
+  animation: clawgotchi-sheen 7s ease-in-out infinite;
+}
+
 .character {
   width: 128px;
   height: 128px;
@@ -25,6 +58,11 @@
   flex-shrink: 0;
   position: relative;
   z-index: 3;
+  filter:
+    drop-shadow(0 0 2px rgba(95, 255, 110, 0.22))
+    drop-shadow(0 0 7px rgba(95, 255, 110, 0.14));
+  animation: clawgotchi-glow-pulse 6s ease-in-out infinite;
+  transition: filter 220ms ease;
 }
 
 .character-nameplate {
@@ -44,6 +82,16 @@
   white-space: nowrap;
   box-shadow: 2px 2px 0 #171a2a;
   pointer-events: none;
+  background-image:
+    linear-gradient(
+      130deg,
+      rgba(178, 255, 171, 0.2),
+      rgba(178, 255, 171, 0.05) 38%,
+      rgba(180, 255, 238, 0.18) 74%,
+      rgba(180, 255, 238, 0.06)
+    );
+  background-size: 220% 220%;
+  animation: clawgotchi-nameplate-gradient 8s ease-in-out infinite;
 }
 
 .character-action-row {
@@ -116,4 +164,64 @@
 
 .action-btn svg rect {
   fill: currentColor;
+}
+
+@keyframes clawgotchi-aura-shift {
+  0% {
+    transform: translate(-2px, -1px) scale(0.98);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translate(2px, 1px) scale(1.03);
+    opacity: 0.84;
+  }
+  100% {
+    transform: translate(0, 2px) scale(1.02);
+    opacity: 0.78;
+  }
+}
+
+@keyframes clawgotchi-sheen {
+  0% {
+    transform: translateX(-4px);
+    opacity: 0.58;
+  }
+  50% {
+    transform: translateX(2px);
+    opacity: 0.68;
+  }
+  100% {
+    transform: translateX(-3px);
+    opacity: 0.54;
+  }
+}
+
+@keyframes clawgotchi-glow-pulse {
+  0% {
+    filter:
+      drop-shadow(0 0 2px rgba(95, 255, 110, 0.22))
+      drop-shadow(0 0 7px rgba(95, 255, 110, 0.14));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 3px rgba(95, 255, 110, 0.3))
+      drop-shadow(0 0 10px rgba(95, 255, 110, 0.2));
+  }
+  100% {
+    filter:
+      drop-shadow(0 0 2px rgba(95, 255, 110, 0.24))
+      drop-shadow(0 0 8px rgba(95, 255, 110, 0.16));
+  }
+}
+
+@keyframes clawgotchi-nameplate-gradient {
+  0% {
+    background-position: 0% 45%;
+  }
+  50% {
+    background-position: 100% 58%;
+  }
+  100% {
+    background-position: 0% 45%;
+  }
 }

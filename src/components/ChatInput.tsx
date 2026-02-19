@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useStore } from "../store/useStore";
 import { GatewayClient } from "../gateway/GatewayClient";
 import { generateUUID } from "../utils/uuid";
+import { appendLocalChatHistory } from "../utils/localChatHistory";
 import "./ChatInput.css";
 
 // We need access to the gateway client ref from useGateway.
@@ -61,6 +62,9 @@ export function ChatInput() {
       }
 
       // Build request params
+      const outgoingText = trimmed || (hasImage ? "[Image attachment]" : "");
+      appendLocalChatHistory("user", outgoingText);
+
       const params: Record<string, unknown> = {
         sessionKey,
         message: trimmed || "What's in this image?",

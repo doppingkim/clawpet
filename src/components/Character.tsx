@@ -17,14 +17,14 @@ const SPRITE_MAP = {
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
 const DEFAULT_NAME = "OpenClaw";
 
-type ActionId = "capture-area" | "capture-display" | "settings";
+type ActionId = "capture-area" | "capture-display" | "history";
 type OpenClawIdentity = { name?: string | null };
 type CaptureResult = { base64: string; mime_type: string };
 
 const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
   { id: "capture-area", label: "Area capture" },
   { id: "capture-display", label: "Full screen capture" },
-  { id: "settings", label: "Settings (coming soon)" },
+  { id: "history", label: "Conversation history" },
 ];
 
 function ActionIcon({ action }: { action: ActionId }) {
@@ -55,12 +55,11 @@ function ActionIcon({ action }: { action: ActionId }) {
   }
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="1" y="2" width="14" height="2" />
-      <rect x="6" y="1" width="2" height="4" />
-      <rect x="1" y="7" width="14" height="2" />
-      <rect x="9" y="6" width="2" height="4" />
-      <rect x="1" y="12" width="14" height="2" />
-      <rect x="4" y="11" width="2" height="4" />
+      <rect x="2" y="2" width="10" height="12" />
+      <rect x="4" y="3" width="8" height="10" />
+      <rect x="4" y="5" width="6" height="1" />
+      <rect x="4" y="7" width="6" height="1" />
+      <rect x="4" y="9" width="5" height="1" />
     </svg>
   );
 }
@@ -103,6 +102,27 @@ export function Character() {
       fullscreen: true,
       skipTaskbar: true,
       focus: true,
+      shadow: false,
+    });
+  }, []);
+
+  const openHistoryWindow = useCallback(async () => {
+    const existing = await WebviewWindow.getByLabel("history");
+    if (existing) {
+      await existing.setFocus();
+      return;
+    }
+
+    new WebviewWindow("history", {
+      url: "/",
+      title: "Conversation History",
+      center: true,
+      width: 560,
+      height: 640,
+      decorations: false,
+      transparent: true,
+      alwaysOnTop: true,
+      resizable: true,
       shadow: false,
     });
   }, []);
@@ -184,9 +204,13 @@ export function Character() {
         }
         return;
       }
+      if (action === "history") {
+        void openHistoryWindow();
+        return;
+      }
       showSpeechBubble("Coming soon");
     },
-    [openCaptureWindow, setAttachedImage, showChatInput, showSpeechBubble],
+    [openCaptureWindow, openHistoryWindow, setAttachedImage, showChatInput, showSpeechBubble],
   );
 
   useEffect(() => {

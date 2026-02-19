@@ -5,6 +5,7 @@ import { Character } from "./components/Character";
 import { SpeechBubble } from "./components/SpeechBubble";
 import { ChatInput } from "./components/ChatInput";
 import { ParchmentPage } from "./components/ParchmentPage";
+import { HistoryPage } from "./components/HistoryPage";
 import { CaptureOverlay } from "./components/CaptureOverlay";
 import { DisconnectedOverlay } from "./components/DisconnectedOverlay";
 import { useGateway } from "./hooks/useGateway";
@@ -13,11 +14,14 @@ import { useStore } from "./store/useStore";
 
 const windowLabel = getCurrentWindow().label;
 const isParchmentWindow = windowLabel === "parchment";
+const isHistoryWindow = windowLabel === "history";
 const isCaptureWindow = windowLabel === "capture" || windowLabel === "capture-area";
 
 export default function App() {
   // Parchment window: render standalone parchment page
   if (isParchmentWindow) return <ParchmentPage />;
+  // History window: render local conversation history
+  if (isHistoryWindow) return <HistoryPage />;
   // Capture window: render area capture overlay
   if (isCaptureWindow) return <CaptureOverlay />;
 

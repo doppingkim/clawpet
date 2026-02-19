@@ -4,6 +4,7 @@ import { GatewayClient } from "../gateway/GatewayClient";
 import { extractText } from "../gateway/textExtract";
 import { useStore } from "../store/useStore";
 import { setGatewayClientRef } from "../components/ChatInput";
+import { appendLocalChatHistory } from "../utils/localChatHistory";
 import type { ChatEventPayload, GatewayHelloOk } from "../gateway/protocol";
 
 type OpenClawConfig = {
@@ -142,6 +143,7 @@ export function useGateway() {
         }
 
         if (finalText) {
+          appendLocalChatHistory("assistant", finalText);
           setLastResponse(finalText);
           showSpeechBubble(finalText);
         }
@@ -150,6 +152,9 @@ export function useGateway() {
         setCharacterAnimation("idle");
       } else if (payload.state === "error") {
         const errMsg = payload.errorMessage ?? "An error occurred";
+        if (store.chatRunId) {
+          appendLocalChatHistory("assistant", `[Error] ${errMsg}`);
+        }
         showSpeechBubble(errMsg);
         setChatRunId(null);
         setChatLoading(false);
@@ -157,6 +162,7 @@ export function useGateway() {
       } else if (payload.state === "aborted") {
         const text = store.streamingText;
         if (text) {
+          appendLocalChatHistory("assistant", text);
           setLastResponse(text);
           showSpeechBubble(text);
         }
