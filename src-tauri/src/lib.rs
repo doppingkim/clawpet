@@ -338,7 +338,7 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
 
-            let tray_icon = Image::from_bytes(include_bytes!("../../public/tray/tray-icon.png"));
+            let tray_icon = Image::from_bytes(include_bytes!("../icons/32x32.png"));
             let icon = match tray_icon {
                 Ok(img) => img,
                 Err(_) => app.default_window_icon().cloned().unwrap_or_else(|| {
