@@ -16,17 +16,17 @@ const SPRITE_MAP = {
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
 const DEFAULT_NAME = "OpenClaw";
 
-type ActionId = "capture" | "memo" | "settings";
+type ActionId = "capture-area" | "capture-display" | "settings";
 type OpenClawIdentity = { name?: string | null };
 
 const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
-  { id: "capture", label: "Area capture" },
-  { id: "memo", label: "Quick memo (coming soon)" },
+  { id: "capture-area", label: "Area capture" },
+  { id: "capture-display", label: "Full screen capture" },
   { id: "settings", label: "Settings (coming soon)" },
 ];
 
 function ActionIcon({ action }: { action: ActionId }) {
-  if (action === "capture") {
+  if (action === "capture-area") {
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
         <rect x="1" y="1" width="4" height="2" />
@@ -41,14 +41,13 @@ function ActionIcon({ action }: { action: ActionId }) {
       </svg>
     );
   }
-  if (action === "memo") {
+  if (action === "capture-display") {
     return (
       <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="3" y="1" width="10" height="14" />
-        <rect x="4" y="2" width="8" height="2" />
-        <rect x="5" y="6" width="6" height="1" />
-        <rect x="5" y="8" width="5" height="1" />
-        <rect x="5" y="10" width="6" height="1" />
+        <rect x="1" y="2" width="14" height="11" />
+        <rect x="2" y="3" width="12" height="9" />
+        <rect x="6" y="13" width="4" height="1" />
+        <rect x="5" y="14" width="6" height="1" />
       </svg>
     );
   }
@@ -79,14 +78,22 @@ export function Character() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [characterName, setCharacterName] = useState(DEFAULT_NAME);
 
-  const openCaptureWindow = useCallback(async () => {
-    const existing = await WebviewWindow.getByLabel("capture");
+  const openCaptureWindow = useCallback(async (mode: "area" | "display") => {
+    const label = mode === "area" ? "capture-area" : "capture-display";
+    const otherLabel = mode === "area" ? "capture-display" : "capture-area";
+
+    const existingOther = await WebviewWindow.getByLabel(otherLabel);
+    if (existingOther) {
+      await existingOther.close();
+    }
+
+    const existing = await WebviewWindow.getByLabel(label);
     if (existing) {
       await existing.setFocus();
       return;
     }
 
-    new WebviewWindow("capture", {
+    new WebviewWindow(label, {
       url: "/",
       title: "Capture",
       decorations: false,
@@ -151,12 +158,16 @@ export function Character() {
   const handleActionClick = useCallback(
     (action: ActionId) => {
       setMenuOpen(false);
-      if (action === "capture") {
+      if (action === "capture-area") {
         if (!ENABLE_AREA_CAPTURE) {
           showSpeechBubble("Area capture is disabled");
           return;
         }
-        void openCaptureWindow();
+        void openCaptureWindow("area");
+        return;
+      }
+      if (action === "capture-display") {
+        void openCaptureWindow("display");
         return;
       }
       showSpeechBubble("Coming soon");

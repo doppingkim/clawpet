@@ -16,6 +16,7 @@ struct FetchImageResult {
 }
 
 const MAX_IMAGE_BYTES: usize = 10 * 1024 * 1024; // 10MB
+const MAX_CHAT_ATTACHMENT_BYTES: usize = 4_800_000; // keep below OpenClaw 5MB gateway limit
 
 #[derive(serde::Deserialize)]
 struct CaptureRegion {
@@ -23,6 +24,16 @@ struct CaptureRegion {
     y: i32,
     width: u32,
     height: u32,
+}
+
+#[derive(serde::Serialize)]
+struct CaptureDisplayInfo {
+    id: u32,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    is_primary: bool,
 }
 
 #[tauri::command]
@@ -185,6 +196,95 @@ async fn capture_screen_region(region: CaptureRegion) -> Result<FetchImageResult
     })
 }
 
+fn encode_dynamic_as_jpeg(
+    image: &image::DynamicImage,
+    quality: u8,
+) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    {
+        let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality);
+        encoder
+            .encode_image(image)
+            .map_err(|e| format!("Failed to encode screenshot: {e}"))?;
+    }
+    Ok(bytes)
+}
+
+fn encode_screen_for_chat(image: image::RgbaImage) -> Result<Vec<u8>, String> {
+    let mut current = image::DynamicImage::ImageRgba8(image);
+    let qualities = [88u8, 80, 72, 64, 56, 48];
+
+    for _ in 0..5 {
+        for quality in qualities {
+            let encoded = encode_dynamic_as_jpeg(&current, quality)?;
+            if encoded.len() <= MAX_CHAT_ATTACHMENT_BYTES {
+                return Ok(encoded);
+            }
+        }
+
+        let next_width = ((current.width() as f32) * 0.82).round() as u32;
+        let next_height = ((current.height() as f32) * 0.82).round() as u32;
+        if next_width < 640 || next_height < 360 {
+            break;
+        }
+
+        current = current.resize(
+            next_width,
+            next_height,
+            image::imageops::FilterType::Triangle,
+        );
+    }
+
+    Err("Captured screen is too large to attach. Try area capture.".to_string())
+}
+
+#[tauri::command]
+async fn list_capture_displays() -> Result<Vec<CaptureDisplayInfo>, String> {
+    let screens = screenshots::Screen::all().map_err(|e| format!("Failed to list screens: {e}"))?;
+
+    let mut displays: Vec<CaptureDisplayInfo> = screens
+        .iter()
+        .map(|screen| {
+            let info = screen.display_info;
+            CaptureDisplayInfo {
+                id: info.id,
+                x: info.x,
+                y: info.y,
+                width: info.width,
+                height: info.height,
+                is_primary: info.is_primary,
+            }
+        })
+        .collect();
+
+    displays.sort_by_key(|display| (display.x, display.y));
+    Ok(displays)
+}
+
+#[tauri::command]
+async fn capture_screen_display(display_id: u32) -> Result<FetchImageResult, String> {
+    let screens = screenshots::Screen::all().map_err(|e| format!("Failed to list screens: {e}"))?;
+
+    let screen = screens
+        .iter()
+        .find(|screen| screen.display_info.id == display_id)
+        .ok_or_else(|| "Selected display not found".to_string())?;
+
+    let image = screen
+        .capture()
+        .map_err(|e| format!("Failed to capture screen: {e}"))?;
+
+    let jpeg_bytes = encode_screen_for_chat(image)?;
+
+    use base64::Engine;
+    let base64 = base64::engine::general_purpose::STANDARD.encode(&jpeg_bytes);
+
+    Ok(FetchImageResult {
+        base64,
+        mime_type: "image/jpeg".to_string(),
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -194,7 +294,9 @@ pub fn run() {
             config_reader::read_openclaw_identity,
             fetch_image_url,
             read_image_file,
-            capture_screen_region
+            capture_screen_region,
+            list_capture_displays,
+            capture_screen_display
         ])
         .setup(|app| {
             // Build tray menu
