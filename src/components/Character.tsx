@@ -1,5 +1,6 @@
-﻿import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+import { invoke } from "@tauri-apps/api/core";
 import { useStore } from "../store/useStore";
 import { useAnimation } from "../hooks/useAnimation";
 import { useDrag } from "../hooks/useDrag";
@@ -13,8 +14,10 @@ const SPRITE_MAP = {
 };
 
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
+const DEFAULT_NAME = "OpenClaw";
 
 type ActionId = "capture" | "memo" | "settings";
+type OpenClawIdentity = { name?: string | null };
 
 const MENU_ACTIONS: Array<{
   id: ActionId;
@@ -71,6 +74,7 @@ export function Character() {
   const lastClickRef = useRef(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [characterName, setCharacterName] = useState(DEFAULT_NAME);
 
   const openCaptureWindow = useCallback(async () => {
     const existing = await WebviewWindow.getByLabel("capture");
@@ -160,6 +164,26 @@ export function Character() {
   );
 
   useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const identity = await invoke<OpenClawIdentity>("read_openclaw_identity");
+        const nextName = identity?.name?.trim();
+        if (!cancelled && nextName) {
+          setCharacterName(nextName);
+        }
+      } catch (err) {
+        console.warn("[character] failed to read identity:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!menuOpen) return;
 
     const onPointerDown = (event: MouseEvent) => {
@@ -189,40 +213,46 @@ export function Character() {
 
   return (
     <div className="character-wrapper" ref={wrapperRef}>
-      <div className={`character-radial-menu${menuOpen ? " open" : ""}`} aria-hidden={!menuOpen}>
-        <div className="radial-halo" />
-        {MENU_ACTIONS.map((action, index) => {
-          const style = {
-            "--tx": action.tx,
-            "--ty": action.ty,
-            "--delay": menuOpen ? `${index * 45}ms` : "0ms",
-          } as CSSProperties;
-          return (
-            <button
-              key={action.id}
-              className="radial-btn"
-              style={style}
-              onClick={() => handleActionClick(action.id)}
-              title={action.label}
-            >
-              <ActionIcon action={action.id} />
-            </button>
-          );
-        })}
+      <div className="character-stage">
+        <div className={`character-radial-menu${menuOpen ? " open" : ""}`} aria-hidden={!menuOpen}>
+          <div className="radial-halo" />
+          {MENU_ACTIONS.map((action, index) => {
+            const style = {
+              "--tx": action.tx,
+              "--ty": action.ty,
+              "--delay": menuOpen ? `${index * 45}ms` : "0ms",
+            } as CSSProperties;
+            return (
+              <button
+                key={action.id}
+                className="radial-btn"
+                style={style}
+                onClick={() => handleActionClick(action.id)}
+                title={action.label}
+              >
+                <ActionIcon action={action.id} />
+              </button>
+            );
+          })}
+        </div>
+
+        <div
+          className="character"
+          style={{
+            backgroundImage: `url(${spriteUrl})`,
+            backgroundPosition: `-${offsetX}px 0`,
+          }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
+        />
       </div>
 
-      <div
-        className="character"
-        style={{
-          backgroundImage: `url(${spriteUrl})`,
-          backgroundPosition: `-${offsetX}px 0`,
-        }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-      />
+      <div className="character-nameplate" title={characterName}>
+        {characterName}
+      </div>
     </div>
   );
 }

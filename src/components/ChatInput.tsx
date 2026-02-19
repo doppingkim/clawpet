@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useStore } from "../store/useStore";
 import { GatewayClient } from "../gateway/GatewayClient";
 import { generateUUID } from "../utils/uuid";

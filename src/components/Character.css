@@ -1,4 +1,13 @@
-﻿.character-wrapper {
+.character-wrapper {
+  position: relative;
+  width: 136px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.character-stage {
   position: relative;
   width: 128px;
   height: 128px;
@@ -16,6 +25,25 @@
   flex-shrink: 0;
   position: relative;
   z-index: 3;
+}
+
+.character-nameplate {
+  max-width: 132px;
+  min-height: 20px;
+  padding: 2px 8px;
+  border: 2px solid #20324e;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f9f7ec 0%, #efe7d3 100%);
+  color: #1f2e45;
+  font-family: "Press Start 2P", monospace;
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 rgba(17, 31, 52, 0.22);
+  pointer-events: none;
 }
 
 .character-radial-menu {

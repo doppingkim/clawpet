@@ -12,6 +12,11 @@ pub struct OpenClawConfig {
     pub url: Option<String>,
 }
 
+#[derive(Serialize)]
+pub struct OpenClawIdentity {
+    pub name: Option<String>,
+}
+
 fn parse_openclaw_config(path: &Path) -> Result<(Option<String>, Option<u16>, Option<String>), String> {
     let content = fs::read_to_string(path).map_err(|e| format!("failed to read config: {}", e))?;
     let json: serde_json::Value =
@@ -32,6 +37,36 @@ fn parse_openclaw_config(path: &Path) -> Result<(Option<String>, Option<u16>, Op
         .filter(|s| !s.is_empty());
 
     Ok((token, port, host))
+}
+
+fn parse_openclaw_workspace(path: &Path) -> Result<Option<String>, String> {
+    let content = fs::read_to_string(path).map_err(|e| format!("failed to read config: {}", e))?;
+    let json: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("failed to parse config: {}", e))?;
+
+    let from_defaults = json
+        .pointer("/agents/defaults/workspace")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    if from_defaults.is_some() {
+        return Ok(from_defaults);
+    }
+
+    let from_default_agent = json
+        .pointer("/agents/list")
+        .and_then(|v| v.as_array())
+        .and_then(|list| {
+            list.iter()
+                .find(|entry| entry.get("default").and_then(|v| v.as_bool()) == Some(true))
+                .and_then(|entry| entry.get("workspace"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        });
+
+    Ok(from_default_agent)
 }
 
 fn find_wsl_config_paths() -> Vec<PathBuf> {
@@ -96,6 +131,180 @@ fn candidate_config_paths() -> Vec<PathBuf> {
     paths
 }
 
+fn push_unique(paths: &mut Vec<PathBuf>, candidate: PathBuf) {
+    if !paths.iter().any(|p| p == &candidate) {
+        paths.push(candidate);
+    }
+}
+
+fn wsl_distro_from_unc_path(path: &Path) -> Option<String> {
+    let raw = path.to_string_lossy().replace('/', "\\");
+    let prefix = "\\\\wsl$\\";
+    if !raw.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase()) {
+        return None;
+    }
+
+    raw[prefix.len()..]
+        .split('\\')
+        .next()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn wsl_user_from_unc_path(path: &Path) -> Option<String> {
+    let raw = path.to_string_lossy().replace('/', "\\");
+    let prefix = "\\\\wsl$\\";
+    if !raw.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase()) {
+        return None;
+    }
+
+    let parts: Vec<&str> = raw[prefix.len()..].split('\\').collect();
+    for (idx, part) in parts.iter().enumerate() {
+        if part.eq_ignore_ascii_case("home") {
+            return parts
+                .get(idx + 1)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+        }
+    }
+    None
+}
+
+fn to_wsl_unc_path(distro: &str, linux_path: &str) -> PathBuf {
+    let rel = linux_path.trim_start_matches('/').replace('/', "\\");
+    if rel.is_empty() {
+        PathBuf::from(format!("\\\\wsl$\\{}", distro))
+    } else {
+        PathBuf::from(format!("\\\\wsl$\\{}\\{}", distro, rel))
+    }
+}
+
+fn resolve_workspace_path(config_path: &Path, raw_workspace: &str) -> PathBuf {
+    let trimmed = raw_workspace.trim();
+
+    if let Some(remainder) = trimmed.strip_prefix("~/") {
+        if let (Some(distro), Some(user)) = (
+            wsl_distro_from_unc_path(config_path),
+            wsl_user_from_unc_path(config_path),
+        ) {
+            return to_wsl_unc_path(&distro, &format!("/home/{}/{}", user, remainder));
+        }
+        if let Some(home) = dirs::home_dir() {
+            return home.join(remainder);
+        }
+    }
+
+    if trimmed.starts_with('/') {
+        if let Some(distro) = wsl_distro_from_unc_path(config_path) {
+            return to_wsl_unc_path(&distro, trimmed);
+        }
+        return PathBuf::from(trimmed);
+    }
+
+    let workspace = PathBuf::from(trimmed);
+    if workspace.is_absolute() {
+        return workspace;
+    }
+
+    config_path
+        .parent()
+        .map(|parent| parent.join(workspace.clone()))
+        .unwrap_or(workspace)
+}
+
+fn push_identity_file_candidates(paths: &mut Vec<PathBuf>, base_dir: &Path) {
+    push_unique(paths, base_dir.join("IDENTITY.md"));
+    push_unique(paths, base_dir.join("identity.md"));
+}
+
+fn candidate_identity_paths() -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+
+    if let Ok(explicit) = std::env::var("OPENCLAW_IDENTITY_PATH") {
+        let explicit = explicit.trim();
+        if !explicit.is_empty() {
+            push_unique(&mut paths, PathBuf::from(explicit));
+        }
+    }
+
+    // User-provided path priority
+    push_unique(
+        &mut paths,
+        PathBuf::from(r"\\wsl$\Ubuntu\home\dopping\.openclaw\workspace\IDENTITY.md"),
+    );
+    push_unique(
+        &mut paths,
+        PathBuf::from(r"\\wsl$\Ubuntu\home\dopping\.openclaw\workspace\identity.md"),
+    );
+
+    if let Ok(workspace) = std::env::var("OPENCLAW_WORKSPACE_PATH") {
+        let workspace = workspace.trim();
+        if !workspace.is_empty() {
+            push_identity_file_candidates(&mut paths, Path::new(workspace));
+        }
+    }
+
+    if let Some(home) = dirs::home_dir() {
+        push_identity_file_candidates(&mut paths, &home.join(".openclaw").join("workspace"));
+        push_identity_file_candidates(&mut paths, &home.join(".openclaw"));
+    }
+
+    for config_path in candidate_config_paths() {
+        if !config_path.exists() {
+            continue;
+        }
+
+        if let Some(config_dir) = config_path.parent() {
+            push_identity_file_candidates(&mut paths, &config_dir.join("workspace"));
+            push_identity_file_candidates(&mut paths, config_dir);
+        }
+
+        if let Ok(Some(workspace_raw)) = parse_openclaw_workspace(&config_path) {
+            let workspace_path = resolve_workspace_path(&config_path, &workspace_raw);
+            push_identity_file_candidates(&mut paths, &workspace_path);
+        }
+    }
+
+    paths
+}
+
+fn parse_identity_name(content: &str) -> Option<String> {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let without_bullet = trimmed.strip_prefix('-').map(|s| s.trim()).unwrap_or(trimmed);
+        let Some((raw_key, raw_value)) = without_bullet.split_once(':') else {
+            continue;
+        };
+
+        let key = raw_key
+            .replace('*', "")
+            .replace('`', "")
+            .replace('_', "")
+            .trim()
+            .to_ascii_lowercase();
+
+        if key != "name" {
+            continue;
+        }
+
+        let value = raw_value
+            .trim()
+            .trim_matches('*')
+            .trim_matches('`')
+            .trim();
+
+        if !value.is_empty() {
+            return Some(value.to_string());
+        }
+    }
+
+    None
+}
+
 #[tauri::command]
 pub fn read_openclaw_config() -> Result<OpenClawConfig, String> {
     // Try environment variable first
@@ -137,4 +346,34 @@ pub fn read_openclaw_config() -> Result<OpenClawConfig, String> {
             .unwrap_or_else(|| "127.0.0.1".to_string()),
         url: env_url,
     })
+}
+
+#[tauri::command]
+pub fn read_openclaw_identity() -> Result<OpenClawIdentity, String> {
+    let env_name = std::env::var("OPENCLAW_IDENTITY_NAME")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    if env_name.is_some() {
+        return Ok(OpenClawIdentity { name: env_name });
+    }
+
+    for path in candidate_identity_paths() {
+        if !path.exists() {
+            continue;
+        }
+
+        let bytes = match fs::read(&path) {
+            Ok(bytes) => bytes,
+            Err(_) => continue,
+        };
+
+        let content = String::from_utf8_lossy(&bytes);
+        if let Some(name) = parse_identity_name(&content) {
+            return Ok(OpenClawIdentity { name: Some(name) });
+        }
+    }
+
+    Ok(OpenClawIdentity { name: None })
 }

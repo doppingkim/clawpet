@@ -191,6 +191,7 @@ pub fn run() {
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             config_reader::read_openclaw_config,
+            config_reader::read_openclaw_identity,
             fetch_image_url,
             read_image_file,
             capture_screen_region
