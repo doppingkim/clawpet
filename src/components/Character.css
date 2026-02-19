@@ -1,0 +1,11 @@
+.character {
+  width: 128px;
+  height: 128px;
+  background-size: 512px 128px; /* 4 frames scaled 2x */
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}

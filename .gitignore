@@ -1,14 +1,24 @@
+# Dependencies
 node_modules/
+
+# Build outputs
 dist/
+src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files
 .env
-*.log
-*.png:Zone.Identifier
-data/task_history.json
-data/categories.json
-data/room_upgrades.json
-# Local artifacts
-ClawGotchi/
-Gemini_Generated_Image_*.png
-progress.md
-apps/server/.openclaw/
-~/
+.env.local
+
+# Tauri
+src-tauri/WixTools/
+src-tauri/gen/

@@ -1,0 +1,19 @@
+{
+  "identifier": "default",
+  "description": "ClawGotchi default capabilities",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-position",
+    "core:window:allow-outer-position",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-size",
+    "core:window:allow-center",
+    "core:window:allow-set-focus",
+    "core:window:allow-is-visible",
+    "core:tray:default",
+    "window-state:default"
+  ]
+}
