@@ -49,7 +49,11 @@ async fn discover_active_tab() -> Result<CdpTarget, String> {
     let url = format!("http://127.0.0.1:{}/json", port);
 
     let response = reqwest::get(&url).await.map_err(|_| {
-        "Chrome is not running in debug mode. Restart Chrome with: chrome.exe --remote-debugging-port=9222".to_string()
+        if cfg!(target_os = "macos") {
+            "Chrome is not running in debug mode. Restart Chrome with: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222".to_string()
+        } else {
+            "Chrome is not running in debug mode. Restart Chrome with: chrome.exe --remote-debugging-port=9222".to_string()
+        }
     })?;
 
     let targets: Vec<CdpTarget> = response.json().await.map_err(|e| {
