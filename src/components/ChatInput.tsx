@@ -81,7 +81,7 @@ export function ChatInput() {
         messageText = trimmed || (hasImage ? "What's in this image?" : "");
       }
 
-      const outgoingText = trimmed || (hasImage ? "[Image attachment]" : hasBrowser ? "[Browser page]" : "");
+      const outgoingText = trimmed || (hasBrowser ? "[Browser page]" : hasImage ? "[Image attachment]" : "");
       appendLocalChatHistory("user", outgoingText);
 
       const params: Record<string, unknown> = {

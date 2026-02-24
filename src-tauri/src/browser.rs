@@ -3,11 +3,13 @@ use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 use std::env;
+use std::sync::LazyLock;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 const DEFAULT_CDP_PORT: u16 = 9222;
 const HTML_MAX_BYTES: usize = 100 * 1024; // 100KB
 const CDP_TIMEOUT_SECS: u64 = 15;
+const MAX_SCREENSHOT_BASE64: usize = 6_400_000; // ~4.8MB decoded
 
 // ---------- Data types ----------
 
@@ -47,7 +49,7 @@ async fn discover_active_tab() -> Result<CdpTarget, String> {
     let url = format!("http://127.0.0.1:{}/json", port);
 
     let response = reqwest::get(&url).await.map_err(|_| {
-        "Chrome이 디버깅 모드로 실행되지 않았어요. chrome.exe --remote-debugging-port=9222 로 Chrome을 다시 시작해주세요!".to_string()
+        "Chrome is not running in debug mode. Restart Chrome with: chrome.exe --remote-debugging-port=9222".to_string()
     })?;
 
     let targets: Vec<CdpTarget> = response.json().await.map_err(|e| {
@@ -57,7 +59,7 @@ async fn discover_active_tab() -> Result<CdpTarget, String> {
     targets
         .into_iter()
         .find(|t| t.target_type == "page" && t.web_socket_debugger_url.is_some())
-        .ok_or_else(|| "Chrome에 열린 탭이 없어요.".to_string())
+        .ok_or_else(|| "No open tabs found in Chrome.".to_string())
 }
 
 // ---------- CDP WebSocket communication ----------
@@ -138,65 +140,118 @@ async fn cdp_execute(ws_url: &str, commands: Vec<Value>) -> Result<Vec<Value>, S
         .collect())
 }
 
-// ---------- HTML preprocessing ----------
+// ---------- HTML preprocessing (lazy-compiled regexes) ----------
+
+static RE_SCRIPT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<script[\s>].*?</script>").unwrap()
+});
+static RE_STYLE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<style[\s>].*?</style>").unwrap()
+});
+static RE_SVG: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<svg[\s>].*?</svg>").unwrap()
+});
+static RE_NOSCRIPT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?is)<noscript[\s>].*?</noscript>").unwrap()
+});
+static RE_ON_ATTR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap()
+});
+static RE_DATA_ATTR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)\s+data-[\w-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap()
+});
+static RE_STYLE_ATTR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)\s+style\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap()
+});
+static RE_CLASS_ATTR: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(?i)\s+class\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap()
+});
+static RE_WHITESPACE: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\s+").unwrap()
+});
 
 fn preprocess_html(raw: &str) -> String {
-    // Remove <script>...</script> tags with content
-    let re_script = Regex::new(r"(?is)<script[\s>].*?</script>").unwrap();
-    let result = re_script.replace_all(raw, "");
-
-    // Remove <style>...</style> tags with content
-    let re_style = Regex::new(r"(?is)<style[\s>].*?</style>").unwrap();
-    let result = re_style.replace_all(&result, "");
-
-    // Remove <svg>...</svg> tags with content
-    let re_svg = Regex::new(r"(?is)<svg[\s>].*?</svg>").unwrap();
-    let result = re_svg.replace_all(&result, "");
-
-    // Remove <noscript>...</noscript> tags with content
-    let re_noscript = Regex::new(r"(?is)<noscript[\s>].*?</noscript>").unwrap();
-    let result = re_noscript.replace_all(&result, "");
-
-    // Remove event handler attributes (on*)
-    let re_on = Regex::new(r#"(?i)\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
-    let result = re_on.replace_all(&result, "");
-
-    // Remove data-* attributes
-    let re_data = Regex::new(r#"(?i)\s+data-[\w-]+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
-    let result = re_data.replace_all(&result, "");
-
-    // Remove inline style attributes
-    let re_inline_style =
-        Regex::new(r#"(?i)\s+style\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
-    let result = re_inline_style.replace_all(&result, "");
-
-    // Remove class attributes
-    let re_class = Regex::new(r#"(?i)\s+class\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)"#).unwrap();
-    let result = re_class.replace_all(&result, "");
-
-    // Collapse whitespace (multiple spaces/newlines -> single space)
-    let re_ws = Regex::new(r"\s+").unwrap();
-    let result = re_ws.replace_all(&result, " ");
+    let result = RE_SCRIPT.replace_all(raw, "");
+    let result = RE_STYLE.replace_all(&result, "");
+    let result = RE_SVG.replace_all(&result, "");
+    let result = RE_NOSCRIPT.replace_all(&result, "");
+    let result = RE_ON_ATTR.replace_all(&result, "");
+    let result = RE_DATA_ATTR.replace_all(&result, "");
+    let result = RE_STYLE_ATTR.replace_all(&result, "");
+    let result = RE_CLASS_ATTR.replace_all(&result, "");
+    let result = RE_WHITESPACE.replace_all(&result, " ");
 
     let result = result.trim().to_string();
 
-    // Truncate to 100KB at a char boundary
     if result.len() > HTML_MAX_BYTES {
         let mut end = HTML_MAX_BYTES;
         while end > 0 && !result.is_char_boundary(end) {
             end -= 1;
         }
-        result[..end].to_string()
+        format!("{}... [truncated]", &result[..end])
     } else {
         result
     }
+}
+
+// ---------- Screenshot compression ----------
+
+fn compress_screenshot_base64(raw_base64: &str) -> Result<String, String> {
+    if raw_base64.is_empty() {
+        return Ok(String::new());
+    }
+
+    // If already within limits, return as-is
+    if raw_base64.len() <= MAX_SCREENSHOT_BASE64 {
+        return Ok(raw_base64.to_string());
+    }
+
+    // Decode base64 → raw JPEG bytes → re-encode at lower quality/size
+    use base64::Engine;
+    let jpeg_bytes = base64::engine::general_purpose::STANDARD
+        .decode(raw_base64)
+        .map_err(|e| format!("Failed to decode screenshot: {}", e))?;
+
+    let img = image::load_from_memory_with_format(&jpeg_bytes, image::ImageFormat::Jpeg)
+        .map_err(|e| format!("Failed to parse screenshot image: {}", e))?;
+
+    let qualities = [70u8, 60, 50, 40];
+    let mut current = img;
+
+    for _ in 0..4 {
+        for quality in qualities {
+            let mut buf = Vec::new();
+            let mut encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buf, quality);
+            encoder
+                .encode_image(&current)
+                .map_err(|e| format!("Failed to re-encode screenshot: {}", e))?;
+
+            let b64 = base64::engine::general_purpose::STANDARD.encode(&buf);
+            if b64.len() <= MAX_SCREENSHOT_BASE64 {
+                return Ok(b64);
+            }
+        }
+
+        // Downscale by 80%
+        let next_w = ((current.width() as f32) * 0.8).round() as u32;
+        let next_h = ((current.height() as f32) * 0.8).round() as u32;
+        if next_w < 640 || next_h < 360 {
+            break;
+        }
+        current = current.resize(next_w, next_h, image::imageops::FilterType::Triangle);
+    }
+
+    Err("Screenshot too large to attach".to_string())
 }
 
 // ---------- Main entry point ----------
 
 pub async fn read_page() -> Result<BrowserPageData, String> {
     let target = discover_active_tab().await?;
-    let ws_url = target.web_socket_debugger_url.as_deref().unwrap();
+    let ws_url = target
+        .web_socket_debugger_url
+        .as_deref()
+        .ok_or("No WebSocket URL available for tab")?;
 
     let commands = vec![
         // 0: Get page HTML
@@ -229,6 +284,17 @@ pub async fn read_page() -> Result<BrowserPageData, String> {
 
     let results = cdp_execute(ws_url, commands).await?;
 
+    // Check for CDP error responses
+    for (i, result) in results.iter().enumerate() {
+        if let Some(error) = result.get("error") {
+            let msg = error
+                .get("message")
+                .and_then(|m| m.as_str())
+                .unwrap_or("Unknown CDP error");
+            eprintln!("[browser-read] CDP command {} error: {}", i, msg);
+        }
+    }
+
     eprintln!("[browser-read] CDP commands completed");
 
     // Extract HTML from results[0]
@@ -239,13 +305,13 @@ pub async fn read_page() -> Result<BrowserPageData, String> {
         .unwrap_or("");
     let html = preprocess_html(html_raw);
 
-    // Extract screenshot base64 from results[1]
-    let screenshot = results
+    // Extract screenshot base64 from results[1] and compress if needed
+    let screenshot_raw = results
         .get(1)
         .and_then(|r| r.pointer("/result/data"))
         .and_then(|v| v.as_str())
-        .unwrap_or("")
-        .to_string();
+        .unwrap_or("");
+    let screenshot = compress_screenshot_base64(screenshot_raw)?;
 
     // Extract url and title from results[2]
     let meta_json_str = results
@@ -268,9 +334,7 @@ pub async fn read_page() -> Result<BrowserPageData, String> {
 
     // Error if both html and screenshot are empty
     if html.is_empty() && screenshot.is_empty() {
-        return Err(
-            "페이지를 읽는 중 오류가 발생했어요. 다시 시도해주세요.".to_string(),
-        );
+        return Err("Failed to read the page. Please try again.".to_string());
     }
 
     eprintln!("[browser-read] Result:");
