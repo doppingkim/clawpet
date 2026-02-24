@@ -22,6 +22,7 @@ ClawPet sits on top of your desktop, connects to OpenClaw Gateway over WebSocket
   - clipboard image paste
 - Area capture (drag rectangle) -> immediate image attachment
 - Full screen capture (monitor where ClawPet is located) -> immediate attachment
+- **Browser reading**: read active Chrome tab (DOM + screenshot) via Chrome DevTools Protocol for AI-assisted browsing
 - Persistent local conversation history (ClawPet-only)
 - External message queue UX ("new letter" style notifications)
 - Identity nameplate from OpenClaw `identity.md`
@@ -52,7 +53,8 @@ ClawPet sits on top of your desktop, connects to OpenClaw Gateway over WebSocket
 
 - Download from GitHub Releases
 - Windows: install `.msi` and run `ClawPet`
-- macOS/Linux: if no prebuilt artifact exists for your platform yet, use Option B
+- macOS: install `.dmg` (Apple Silicon and Intel builds available)
+- Linux: if no prebuilt artifact exists for your platform yet, use Option B
 
 ### Option B: Build from source
 
@@ -155,6 +157,45 @@ Use `.env` for optional modules:
 - ClawPet image input size limit: 10MB
 - Screen capture is auto-compressed for chat gateway size constraints
 - Non-image file attachments (`csv`, `xlsx`, `doc`, `pdf`, `txt`) are not supported by ClawPet/OpenClaw chat attachment path yet
+
+## Browser Reading Setup
+
+ClawPet can read your active Chrome tab (HTML content + screenshot) and let you ask AI questions about the page.
+
+### Requirements
+
+Chrome must be launched with the remote debugging port enabled. A separate user profile is recommended to avoid conflicts with your main Chrome instance.
+
+### Windows
+
+Create a shortcut with these flags:
+
+```
+chrome.exe --remote-debugging-port=9222 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\ClawGotchi\chrome-debug-profile"
+```
+
+### macOS
+
+```bash
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --remote-allow-origins=* \
+  --user-data-dir="$HOME/Library/Application Support/ClawGotchi/chrome-debug-profile"
+```
+
+### Usage
+
+1. Launch Chrome using the shortcut/command above (sign into your Google account to sync bookmarks, etc.)
+2. Navigate to any webpage
+3. Right-click ClawPet → **Read browser page**
+4. A browser context indicator appears in the chat input
+5. Type a question about the page (or press Enter for a default summary)
+
+### Notes
+
+- All existing Chrome windows must be closed before launching with the debug flag
+- The debug port can be customized via `CLAWGOTCHI_CDP_PORT` environment variable (default: 9222)
+- Screenshot captures the visible viewport only; HTML captures the full DOM
 
 ## Troubleshooting
 
