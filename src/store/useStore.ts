@@ -4,6 +4,13 @@ import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 export type AnimationState = "idle" | "talking" | "thinking" | "sleeping";
 export type ConnectionState = "disconnected" | "connecting" | "connected";
 
+export type BrowserContext = {
+  html: string;
+  screenshot: string;
+  url: string;
+  title: string;
+};
+
 interface ClawPetState {
   // Connection
   connectionState: ConnectionState;
@@ -20,6 +27,11 @@ interface ClawPetState {
 
   // Image attachment
   attachedImage: { dataUrl: string; mimeType: string } | null;
+
+  // Browser context
+  browserContext: BrowserContext | null;
+  setBrowserContext: (ctx: BrowserContext) => void;
+  clearBrowserContext: () => void;
 
   // UI
   speechBubbleVisible: boolean;
@@ -96,6 +108,11 @@ export const useStore = create<ClawPetState>((set) => ({
 
   setAttachedImage: (img) => set({ attachedImage: img }),
   clearAttachedImage: () => set({ attachedImage: null }),
+
+  // Browser context
+  browserContext: null,
+  setBrowserContext: (ctx) => set({ browserContext: ctx }),
+  clearBrowserContext: () => set({ browserContext: null }),
 
   showSpeechBubble: (text) => set({ speechBubbleVisible: true, speechBubbleText: text }),
   hideSpeechBubble: () => set({ speechBubbleVisible: false, speechBubbleText: "" }),

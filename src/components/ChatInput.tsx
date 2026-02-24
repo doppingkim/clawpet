@@ -27,6 +27,8 @@ export function ChatInput() {
   const sessionKey = useStore((s) => s.sessionKey);
   const attachedImage = useStore((s) => s.attachedImage);
   const clearAttachedImage = useStore((s) => s.clearAttachedImage);
+  const browserContext = useStore((s) => s.browserContext);
+  const clearBrowserContext = useStore((s) => s.clearBrowserContext);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -40,7 +42,8 @@ export function ChatInput() {
     async (message: string) => {
       const trimmed = message.trim();
       const hasImage = !!attachedImage;
-      if (!trimmed && !hasImage) return;
+      const hasBrowser = !!browserContext;
+      if (!trimmed && !hasImage && !hasBrowser) return;
       if (chatLoading) return;
 
       hideChatInput();
@@ -61,13 +64,29 @@ export function ChatInput() {
         return;
       }
 
-      // Build request params
-      const outgoingText = trimmed || (hasImage ? "[Image attachment]" : "");
+      // Build message text - include browser context if present
+      let messageText: string;
+      if (hasBrowser) {
+        const parts: string[] = [];
+        parts.push(`[Browsing: ${browserContext.url}]`);
+        parts.push(`Title: ${browserContext.title}`);
+        parts.push("");
+        parts.push("```html");
+        parts.push(browserContext.html);
+        parts.push("```");
+        parts.push("");
+        parts.push(trimmed || "이 페이지에 대해 설명해줘");
+        messageText = parts.join("\n");
+      } else {
+        messageText = trimmed || (hasImage ? "What's in this image?" : "");
+      }
+
+      const outgoingText = trimmed || (hasImage ? "[Image attachment]" : hasBrowser ? "[Browser page]" : "");
       appendLocalChatHistory("user", outgoingText);
 
       const params: Record<string, unknown> = {
         sessionKey,
-        message: trimmed || "What's in this image?",
+        message: messageText,
         deliver: false,
         idempotencyKey: runId,
       };
@@ -80,6 +99,10 @@ export function ChatInput() {
           ];
         }
         clearAttachedImage();
+      }
+
+      if (hasBrowser) {
+        clearBrowserContext();
       }
 
       try {
@@ -106,6 +129,8 @@ export function ChatInput() {
       sessionKey,
       attachedImage,
       clearAttachedImage,
+      browserContext,
+      clearBrowserContext,
       chatLoading,
     ],
   );
@@ -117,11 +142,12 @@ export function ChatInput() {
         handleSubmit(inputRef.current?.value ?? "");
       } else if (e.key === "Escape") {
         clearAttachedImage();
+        clearBrowserContext();
         if (inputRef.current) inputRef.current.value = "";
         hideChatInput();
       }
     },
-    [handleSubmit, hideChatInput, clearAttachedImage],
+    [handleSubmit, hideChatInput, clearAttachedImage, clearBrowserContext],
   );
 
   const handleRemoveImage = useCallback(() => {
@@ -132,6 +158,14 @@ export function ChatInput() {
 
   return (
     <div className="chat-input-container">
+      {browserContext && (
+        <div className="chat-browser-context">
+          <span className="chat-browser-url">{browserContext.title || browserContext.url}</span>
+          <button className="chat-image-remove" onClick={() => { clearBrowserContext(); clearAttachedImage(); }} title="Remove browser context">
+            x
+          </button>
+        </div>
+      )}
       {attachedImage && (
         <div className="chat-image-preview">
           <img src={attachedImage.dataUrl} alt="attached" className="chat-image-thumb" />
@@ -144,7 +178,13 @@ export function ChatInput() {
         ref={inputRef}
         className="chat-input"
         type="text"
-        placeholder={attachedImage ? "Add a question... (Enter to send)" : "Ask me anything..."}
+        placeholder={
+          browserContext
+            ? "Ask about this page... (Enter to send)"
+            : attachedImage
+              ? "Add a question... (Enter to send)"
+              : "Ask me anything..."
+        }
         onKeyDown={handleKeyDown}
         maxLength={500}
       />

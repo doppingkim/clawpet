@@ -17,13 +17,14 @@ const SPRITE_MAP = {
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
 const DEFAULT_NAME = "OpenClaw";
 
-type ActionId = "capture-area" | "capture-display" | "history";
+type ActionId = "capture-area" | "capture-display" | "read-browser" | "history";
 type OpenClawIdentity = { name?: string | null };
 type CaptureResult = { base64: string; mime_type: string };
 
 const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
   { id: "capture-area", label: "Area capture" },
   { id: "capture-display", label: "Full screen capture" },
+  { id: "read-browser", label: "Read browser page" },
   { id: "history", label: "Conversation history" },
 ];
 
@@ -53,6 +54,18 @@ function ActionIcon({ action }: { action: ActionId }) {
       </svg>
     );
   }
+  if (action === "read-browser") {
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="1" y="1" width="14" height="14" rx="2" />
+        <rect x="2" y="2" width="12" height="12" rx="1" />
+        <rect x="1" y="4" width="14" height="1" />
+        <circle cx="3" cy="2.5" r="0.7" />
+        <circle cx="5" cy="2.5" r="0.7" />
+        <circle cx="7" cy="2.5" r="0.7" />
+      </svg>
+    );
+  }
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
       <rect x="2" y="2" width="10" height="12" />
@@ -71,6 +84,8 @@ export function Character() {
   const chatInputVisible = useStore((s) => s.chatInputVisible);
   const showSpeechBubble = useStore((s) => s.showSpeechBubble);
   const setAttachedImage = useStore((s) => s.setAttachedImage);
+  const setBrowserContext = useStore((s) => s.setBrowserContext);
+  const hideSpeechBubble = useStore((s) => s.hideSpeechBubble);
   const connectionState = useStore((s) => s.connectionState);
   const parchmentVisible = useStore((s) => s.parchmentVisible);
   const frame = useAnimation(animation);
@@ -203,13 +218,34 @@ export function Character() {
         }
         return;
       }
+      if (action === "read-browser") {
+        showSpeechBubble("Reading browser...");
+        try {
+          const result = await invoke<{
+            html: string;
+            screenshot: string;
+            url: string;
+            title: string;
+          }>("read_browser_page");
+          setBrowserContext(result);
+          setAttachedImage({
+            dataUrl: `data:image/jpeg;base64,${result.screenshot}`,
+            mimeType: "image/jpeg",
+          });
+          hideSpeechBubble();
+          showChatInput();
+        } catch (err) {
+          showSpeechBubble(String(err));
+        }
+        return;
+      }
       if (action === "history") {
         void openHistoryWindow();
         return;
       }
       showSpeechBubble("Coming soon");
     },
-    [openCaptureWindow, openHistoryWindow, setAttachedImage, showChatInput, showSpeechBubble],
+    [openCaptureWindow, openHistoryWindow, setAttachedImage, setBrowserContext, hideSpeechBubble, showChatInput, showSpeechBubble],
   );
 
   useEffect(() => {
