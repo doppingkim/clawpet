@@ -1,3 +1,4 @@
+mod browser;
 mod config_reader;
 
 use std::io::Cursor;
@@ -317,6 +318,11 @@ async fn capture_screen_for_point(x: i32, y: i32) -> Result<FetchImageResult, St
     })
 }
 
+#[tauri::command]
+async fn read_browser_page() -> Result<browser::BrowserPageData, String> {
+    browser::read_page().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -329,7 +335,8 @@ pub fn run() {
             capture_screen_region,
             list_capture_displays,
             capture_screen_display,
-            capture_screen_for_point
+            capture_screen_for_point,
+            read_browser_page
         ])
         .setup(|app| {
             // Build tray menu
