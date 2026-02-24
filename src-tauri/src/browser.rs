@@ -171,7 +171,14 @@ static RE_WHITESPACE: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 fn preprocess_html(raw: &str) -> String {
-    let result = RE_SCRIPT.replace_all(raw, "");
+    // Rough pre-truncation: skip regex on extremely large HTML (>1MB)
+    let input = if raw.len() > 1_024_000 {
+        &raw[..raw.floor_char_boundary(1_024_000)]
+    } else {
+        raw
+    };
+
+    let result = RE_SCRIPT.replace_all(input, "");
     let result = RE_STYLE.replace_all(&result, "");
     let result = RE_SVG.replace_all(&result, "");
     let result = RE_NOSCRIPT.replace_all(&result, "");

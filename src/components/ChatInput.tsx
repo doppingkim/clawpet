@@ -75,7 +75,7 @@ export function ChatInput() {
         parts.push(browserContext.html);
         parts.push("```");
         parts.push("");
-        parts.push(trimmed || "이 페이지에 대해 설명해줘");
+        parts.push(trimmed || "Describe this page");
         messageText = parts.join("\n");
       } else {
         messageText = trimmed || (hasImage ? "What's in this image?" : "");

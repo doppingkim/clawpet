@@ -228,10 +228,12 @@ export function Character() {
             title: string;
           }>("read_browser_page");
           setBrowserContext(result);
-          setAttachedImage({
-            dataUrl: `data:image/jpeg;base64,${result.screenshot}`,
-            mimeType: "image/jpeg",
-          });
+          if (result.screenshot) {
+            setAttachedImage({
+              dataUrl: `data:image/jpeg;base64,${result.screenshot}`,
+              mimeType: "image/jpeg",
+            });
+          }
           hideSpeechBubble();
           showChatInput();
         } catch (err) {
