@@ -17,7 +17,7 @@ const SPRITE_MAP = {
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
 const DEFAULT_NAME = "OpenClaw";
 
-type ActionId = "capture-area" | "capture-display" | "read-browser" | "history";
+type ActionId = "capture-area" | "capture-display" | "read-browser" | "history" | "clip-to-obsidian";
 type OpenClawIdentity = { name?: string | null };
 type CaptureResult = { base64: string; mime_type: string };
 
@@ -26,6 +26,7 @@ const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
   { id: "capture-display", label: "Full screen capture" },
   { id: "read-browser", label: "Read browser page" },
   { id: "history", label: "Conversation history" },
+  { id: "clip-to-obsidian", label: "Save to Obsidian" },
 ];
 
 function ActionIcon({ action }: { action: ActionId }) {
@@ -63,6 +64,18 @@ function ActionIcon({ action }: { action: ActionId }) {
         <circle cx="3" cy="2.5" r="0.7" />
         <circle cx="5" cy="2.5" r="0.7" />
         <circle cx="7" cy="2.5" r="0.7" />
+      </svg>
+    );
+  }
+  if (action === "clip-to-obsidian") {
+    return (
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="3" y="1" width="10" height="14" rx="1" />
+        <rect x="4" y="2" width="8" height="12" rx="1" />
+        <rect x="6" y="5" width="4" height="1" />
+        <rect x="6" y="7" width="4" height="1" />
+        <rect x="6" y="9" width="3" height="1" />
+        <polygon points="7,11 8,13 9,11" />
       </svg>
     );
   }
@@ -243,6 +256,22 @@ export function Character() {
       }
       if (action === "history") {
         void openHistoryWindow();
+        return;
+      }
+      if (action === "clip-to-obsidian") {
+        showSpeechBubble("Reading page...");
+        try {
+          const result = await invoke<{
+            savedPath: string;
+            category: string;
+            title: string;
+            imageCount: number;
+          }>("clip_page_to_obsidian");
+          const imgMsg = result.imageCount > 0 ? ` (+${result.imageCount} images)` : "";
+          showSpeechBubble(`Saved to ${result.category}!${imgMsg}`);
+        } catch (err) {
+          showSpeechBubble(String(err));
+        }
         return;
       }
       showSpeechBubble("Coming soon");

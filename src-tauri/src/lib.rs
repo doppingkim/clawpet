@@ -1,5 +1,6 @@
 mod browser;
 mod config_reader;
+mod obsidian_clipper;
 
 use std::io::Cursor;
 
@@ -323,6 +324,11 @@ async fn read_browser_page() -> Result<browser::BrowserPageData, String> {
     browser::read_page().await
 }
 
+#[tauri::command]
+async fn clip_page_to_obsidian() -> Result<obsidian_clipper::ClipResult, String> {
+    obsidian_clipper::clip_to_obsidian().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -336,7 +342,8 @@ pub fn run() {
             list_capture_displays,
             capture_screen_display,
             capture_screen_for_point,
-            read_browser_page
+            read_browser_page,
+            clip_page_to_obsidian
         ])
         .setup(|app| {
             // Build tray menu

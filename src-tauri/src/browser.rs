@@ -16,13 +16,13 @@ const MAX_SCREENSHOT_BASE64: usize = 6_400_000; // ~4.8MB decoded
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
-struct CdpTarget {
+pub(crate) struct CdpTarget {
     id: String,
     #[serde(rename = "type")]
     target_type: String,
-    title: String,
-    url: String,
-    web_socket_debugger_url: Option<String>,
+    pub title: String,
+    pub url: String,
+    pub web_socket_debugger_url: Option<String>,
 }
 
 #[derive(serde::Serialize, Clone, Debug)]
@@ -44,7 +44,7 @@ fn get_cdp_port() -> u16 {
 
 // ---------- Tab discovery ----------
 
-async fn discover_active_tab() -> Result<CdpTarget, String> {
+pub(crate) async fn discover_active_tab() -> Result<CdpTarget, String> {
     let port = get_cdp_port();
     let url = format!("http://127.0.0.1:{}/json", port);
 
@@ -68,7 +68,7 @@ async fn discover_active_tab() -> Result<CdpTarget, String> {
 
 // ---------- CDP WebSocket communication ----------
 
-async fn cdp_execute(ws_url: &str, commands: Vec<Value>) -> Result<Vec<Value>, String> {
+pub(crate) async fn cdp_execute(ws_url: &str, commands: Vec<Value>) -> Result<Vec<Value>, String> {
     let (ws_stream, _) = connect_async(ws_url)
         .await
         .map_err(|e| format!("WebSocket connection failed: {}", e))?;
