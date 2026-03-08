@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readLocalChatHistory, type LocalChatEntry } from "../utils/localChatHistory";
 import { renderMarkdown } from "../utils/renderMarkdown";
@@ -17,6 +17,7 @@ function formatStamp(timestamp: number) {
 
 export function HistoryPage() {
   const [entries, setEntries] = useState<LocalChatEntry[]>(() => readLocalChatHistory());
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const refresh = () => {
@@ -30,6 +31,19 @@ export function HistoryPage() {
       window.removeEventListener("storage", refresh);
     };
   }, []);
+
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      }
+    };
+    // Scroll after layout + after fonts/content fully rendered
+    requestAnimationFrame(() => {
+      scrollToBottom();
+      setTimeout(scrollToBottom, 100);
+    });
+  }, [entries]);
 
   const titleText = useMemo(() => {
     return entries.length > 0 ? `ClawPet Conversations (${entries.length})` : "ClawPet Conversations";
@@ -55,7 +69,7 @@ export function HistoryPage() {
         </button>
         <div className="history-title">{titleText}</div>
 
-        <div className="history-list">
+        <div className="history-list" ref={listRef}>
           {entries.length === 0 && (
             <div className="history-empty">No ClawPet conversation history yet.</div>
           )}

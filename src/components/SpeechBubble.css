@@ -13,6 +13,7 @@
   word-wrap: break-word;
   animation: bubble-pop 0.15s ease-out;
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .speech-bubble:hover {
@@ -32,7 +33,7 @@
 
 .speech-bubble-text {
   white-space: pre-wrap;
-  max-height: 180px;
+  max-height: 140px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -57,18 +58,23 @@
 .speech-bubble-more {
   display: block;
   margin-top: 6px;
-  background: none;
-  border: none;
+  background: rgba(0, 102, 204, 0.08);
+  border: 2px solid #0066cc;
+  border-radius: 6px;
   color: #0066cc;
   font-family: "Press Start 2P", monospace;
   font-size: 9px;
   cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
+  padding: 6px 10px;
+  text-decoration: none;
+  min-height: 28px;
+  line-height: 1.4;
 }
 
 .speech-bubble-more:hover {
-  color: #0044aa;
+  color: #fff;
+  background: #0066cc;
+  border-color: #0066cc;
 }
 
 .speech-bubble-mail-hint {
