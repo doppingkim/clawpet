@@ -164,7 +164,7 @@ export const useStore = create<ClawPetState>((set) => ({
       win.once("tauri://destroyed", () => {
         set({ parchmentVisible: false, speechBubbleVisible: false, speechBubbleText: "" });
       });
-    })();
+    })().catch((err) => console.error("[store] parchment window error:", err));
   },
   hideParchment: () => {
     set({ parchmentVisible: false, parchmentText: "" });
@@ -174,7 +174,7 @@ export const useStore = create<ClawPetState>((set) => ({
       if (existing) {
         await existing.close();
       }
-    })();
+    })().catch((err) => console.error("[store] parchment close error:", err));
   },
   setCharacterAnimation: (characterAnimation) => set({ characterAnimation }),
   setLastResponse: (lastResponse) => set({ lastResponse }),

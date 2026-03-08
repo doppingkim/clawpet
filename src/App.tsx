@@ -18,13 +18,13 @@ const isHistoryWindow = windowLabel === "history";
 const isCaptureWindow = windowLabel === "capture" || windowLabel === "capture-area";
 
 export default function App() {
-  // Parchment window: render standalone parchment page
   if (isParchmentWindow) return <ParchmentPage />;
-  // History window: render local conversation history
   if (isHistoryWindow) return <HistoryPage />;
-  // Capture window: render area capture overlay
   if (isCaptureWindow) return <CaptureOverlay />;
+  return <MainWindow />;
+}
 
+function MainWindow() {
   const connectionState = useStore((s) => s.connectionState);
   const parchmentVisible = useStore((s) => s.parchmentVisible);
   const setAttachedImage = useStore((s) => s.setAttachedImage);

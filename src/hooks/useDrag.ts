@@ -23,7 +23,7 @@ export function useDrag() {
     if (Math.abs(dx) + Math.abs(dy) > 5) {
       dragging.current = true;
       downPos.current = null;
-      getCurrentWindow().startDragging();
+      getCurrentWindow().startDragging().catch(() => {});
     }
   }, []);
 

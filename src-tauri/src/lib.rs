@@ -38,8 +38,35 @@ struct CaptureDisplayInfo {
     is_primary: bool,
 }
 
+fn is_safe_url(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return false;
+    }
+    if let Some(host) = parsed.host_str() {
+        let lower = host.to_lowercase();
+        if lower == "localhost"
+            || lower == "127.0.0.1"
+            || lower == "[::1]"
+            || lower.ends_with(".local")
+            || lower.starts_with("10.")
+            || lower.starts_with("192.168.")
+        {
+            return false;
+        }
+    }
+    true
+}
+
 #[tauri::command]
 async fn fetch_image_url(url: String) -> Result<FetchImageResult, String> {
+    if !is_safe_url(&url) {
+        return Err("URL is not allowed".to_string());
+    }
+
     let response = reqwest::get(&url).await.map_err(|e| e.to_string())?;
 
     if let Some(content_len) = response.content_length() {
@@ -114,7 +141,13 @@ fn detect_image_mime(path: &str, bytes: &[u8]) -> Option<String> {
 
 #[tauri::command]
 async fn read_image_file(path: String) -> Result<FetchImageResult, String> {
-    let bytes = std::fs::read(&path).map_err(|e| format!("Failed to read file: {e}"))?;
+    let canonical = std::fs::canonicalize(&path)
+        .map_err(|e| format!("Failed to read file: {e}"))?;
+    let path_str = canonical.to_string_lossy();
+    if path_str.contains("..") {
+        return Err("Invalid file path".to_string());
+    }
+    let bytes = std::fs::read(&canonical).map_err(|e| format!("Failed to read file: {e}"))?;
 
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err("Image exceeds 10MB limit".to_string());

@@ -23,7 +23,7 @@ export function HistoryPage() {
       setEntries(readLocalChatHistory());
     };
 
-    const timer = window.setInterval(refresh, 1000);
+    const timer = window.setInterval(refresh, 5000);
     window.addEventListener("storage", refresh);
     return () => {
       window.clearInterval(timer);

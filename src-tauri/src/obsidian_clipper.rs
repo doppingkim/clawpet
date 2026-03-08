@@ -1,10 +1,29 @@
 use crate::browser;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::LazyLock;
 
-const OBSIDIAN_BASE: &str = r"C:\obsidian\doyeon\03 Resources";
-const OBSIDIAN_IMG_DIR: &str = r"C:\obsidian\doyeon\03 Resources\ref_img";
+const DEFAULT_OBSIDIAN_BASE: &str = r"C:\obsidian\doyeon\03 Resources";
+const DEFAULT_OBSIDIAN_IMG_DIR: &str = r"C:\obsidian\doyeon\03 Resources\ref_img";
 const EXTRACTION_JS: &str = include_str!("extract_page.js");
+
+static RE_IMG_PLACEHOLDER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\{\{IMG:\d+\}\}").unwrap());
+
+fn obsidian_base_dir() -> PathBuf {
+    PathBuf::from(
+        std::env::var("CLAWPET_OBSIDIAN_BASE")
+            .unwrap_or_else(|_| DEFAULT_OBSIDIAN_BASE.to_string()),
+    )
+}
+
+fn obsidian_img_dir() -> PathBuf {
+    PathBuf::from(
+        std::env::var("CLAWPET_OBSIDIAN_IMG_DIR")
+            .unwrap_or_else(|_| DEFAULT_OBSIDIAN_IMG_DIR.to_string()),
+    )
+}
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -66,16 +85,24 @@ fn categorize(hints: &str) -> &'static str {
 
 // ---------- Filename helpers ----------
 
+fn is_cjk_or_hangul(c: char) -> bool {
+    let cp = c as u32;
+    // CJK Unified Ideographs, Hangul Syllables, Hangul Jamo, Katakana, Hiragana
+    (0x3000..=0x9FFF).contains(&cp)
+        || (0xAC00..=0xD7AF).contains(&cp)
+        || (0x1100..=0x11FF).contains(&cp)
+        || (0xF900..=0xFAFF).contains(&cp)
+}
+
 fn slugify(text: &str) -> String {
     let mut result = String::new();
     let mut last_was_sep = false;
 
     for c in text.chars().take(50) {
-        if c.is_alphanumeric() {
+        if c.is_ascii_alphanumeric() {
             result.push(c);
             last_was_sep = false;
-        } else if c as u32 > 127 {
-            // Keep Korean/CJK characters
+        } else if is_cjk_or_hangul(c) {
             result.push(c);
             last_was_sep = false;
         } else if !last_was_sep && !result.is_empty() {
@@ -240,8 +267,7 @@ fn resolve_image_placeholders(content: &str, image_filenames: &[String]) -> (Str
     }
 
     // Also resolve any remaining placeholders for images that failed to download
-    let re = regex::Regex::new(r"\{\{IMG:\d+\}\}").unwrap();
-    result = re.replace_all(&result, "").to_string();
+    result = RE_IMG_PLACEHOLDER.replace_all(&result, "").to_string();
 
     (result, found_any)
 }
@@ -399,15 +425,15 @@ pub async fn clip_to_obsidian(pet_x: i32, pet_y: i32) -> Result<ClipResult, Stri
     let category = categorize(&page.text_hints);
 
     // 4. Create target folder
-    let folder = PathBuf::from(OBSIDIAN_BASE).join(category);
+    let folder = obsidian_base_dir().join(category);
     std::fs::create_dir_all(&folder)
-        .map_err(|e| format!("Failed to create folder {}: {}", folder.display(), e))?;
+        .map_err(|e| format!("Failed to create Obsidian folder: {}", e))?;
 
     // 5. Generate base filename
     let base_name = generate_base_name(&page);
 
     // 6. Download and save images to separate ref_img folder
-    let img_folder = PathBuf::from(OBSIDIAN_IMG_DIR);
+    let img_folder = obsidian_img_dir();
     std::fs::create_dir_all(&img_folder)
         .map_err(|e| format!("Failed to create image folder: {}", e))?;
 
