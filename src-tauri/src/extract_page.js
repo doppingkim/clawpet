@@ -249,8 +249,8 @@
     });
   }
 
-  // Limit images to 10
-  r.images = r.images.slice(0, 10);
+  // Limit images to 30
+  r.images = r.images.slice(0, 30);
 
   // Clean up content: collapse excessive newlines
   r.content = r.content.replace(/\n{3,}/g, '\n\n').trim();

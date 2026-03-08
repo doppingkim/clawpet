@@ -110,6 +110,7 @@ export function useGateway() {
       if (!payload) return;
 
       const store = useStore.getState();
+
       if (payload.sessionKey !== store.sessionKey) return;
 
       // Ignore events from other runs

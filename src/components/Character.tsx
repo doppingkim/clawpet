@@ -21,74 +21,14 @@ type ActionId = "capture-area" | "capture-display" | "read-browser" | "history" 
 type OpenClawIdentity = { name?: string | null };
 type CaptureResult = { base64: string; mime_type: string };
 
-const MENU_ACTIONS: Array<{ id: ActionId; label: string }> = [
-  { id: "capture-area", label: "Area capture" },
-  { id: "capture-display", label: "Full screen capture" },
-  { id: "read-browser", label: "Read browser page" },
-  { id: "history", label: "Conversation history" },
-  { id: "clip-to-obsidian", label: "Save to Obsidian" },
+const MENU_ACTIONS: Array<{ id: ActionId; label: string; shortLabel: string }> = [
+  { id: "capture-area", label: "Area capture", shortLabel: "영역캡처" },
+  { id: "capture-display", label: "Full screen capture", shortLabel: "전체캡처" },
+  { id: "read-browser", label: "Read browser page", shortLabel: "페이지읽기" },
+  { id: "clip-to-obsidian", label: "Save to Obsidian", shortLabel: "옵시디언저장" },
+  { id: "history", label: "Conversation history", shortLabel: "대화기록" },
 ];
 
-function ActionIcon({ action }: { action: ActionId }) {
-  if (action === "capture-area") {
-    return (
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="1" y="1" width="4" height="2" />
-        <rect x="1" y="1" width="2" height="4" />
-        <rect x="11" y="1" width="4" height="2" />
-        <rect x="13" y="1" width="2" height="4" />
-        <rect x="1" y="13" width="4" height="2" />
-        <rect x="1" y="11" width="2" height="4" />
-        <rect x="11" y="13" width="4" height="2" />
-        <rect x="13" y="11" width="2" height="4" />
-        <rect x="6" y="6" width="4" height="4" />
-      </svg>
-    );
-  }
-  if (action === "capture-display") {
-    return (
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="1" y="2" width="14" height="11" />
-        <rect x="2" y="3" width="12" height="9" />
-        <rect x="6" y="13" width="4" height="1" />
-        <rect x="5" y="14" width="6" height="1" />
-      </svg>
-    );
-  }
-  if (action === "read-browser") {
-    return (
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="1" y="1" width="14" height="14" rx="2" />
-        <rect x="2" y="2" width="12" height="12" rx="1" />
-        <rect x="1" y="4" width="14" height="1" />
-        <circle cx="3" cy="2.5" r="0.7" />
-        <circle cx="5" cy="2.5" r="0.7" />
-        <circle cx="7" cy="2.5" r="0.7" />
-      </svg>
-    );
-  }
-  if (action === "clip-to-obsidian") {
-    return (
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="3" y="1" width="10" height="14" rx="1" />
-        <rect x="4" y="2" width="8" height="12" rx="1" />
-        <rect x="6" y="5" width="4" height="1" />
-        <rect x="6" y="7" width="4" height="1" />
-        <rect x="6" y="9" width="3" height="1" />
-        <polygon points="7,11 8,13 9,11" />
-      </svg>
-    );
-  }
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <rect x="2" y="2" width="10" height="12" />
-      <rect x="4" y="3" width="8" height="10" />
-      <rect x="4" y="5" width="6" height="1" />
-      <rect x="4" y="7" width="6" height="1" />
-      <rect x="4" y="9" width="5" height="1" />
-    </svg>
-  );
-}
 
 export function Character() {
   const animation = useStore((s) => s.characterAnimation);
@@ -351,7 +291,7 @@ export function Character() {
                 }}
                 title={action.label}
               >
-                <ActionIcon action={action.id} />
+                {action.shortLabel}
               </button>
             );
           })}

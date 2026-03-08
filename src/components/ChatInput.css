@@ -5,6 +5,7 @@
   transform: translateX(-50%);
   z-index: 10;
   animation: slide-up 0.15s ease-out;
+  pointer-events: auto;
 }
 
 @keyframes slide-up {
@@ -26,8 +27,13 @@
   background: #fff;
   font-family: "Press Start 2P", monospace;
   font-size: 11px;
+  line-height: 1.6;
   color: #222;
   outline: none;
+  resize: none;
+  overflow-y: auto;
+  min-height: 35px;
+  max-height: 110px;
 }
 
 .chat-input:focus {

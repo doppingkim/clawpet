@@ -3,7 +3,6 @@ mod config_reader;
 mod obsidian_clipper;
 
 use std::io::Cursor;
-
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},

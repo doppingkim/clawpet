@@ -29,14 +29,32 @@ export function ChatInput() {
   const clearAttachedImage = useStore((s) => s.clearAttachedImage);
   const browserContext = useStore((s) => s.browserContext);
   const clearBrowserContext = useStore((s) => s.clearBrowserContext);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const resetHeight = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+  }, []);
+
+  const autoResize = useCallback(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = el.scrollHeight + "px";
+  }, []);
 
   useEffect(() => {
     if (visible) {
       // Small delay to ensure DOM is ready
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setTimeout(() => {
+        if (inputRef.current) {
+          resetHeight();
+          inputRef.current.focus();
+        }
+      }, 50);
     }
-  }, [visible]);
+  }, [visible, resetHeight]);
 
   const handleSubmit = useCallback(
     async (message: string) => {
@@ -87,7 +105,6 @@ export function ChatInput() {
       const params: Record<string, unknown> = {
         sessionKey,
         message: messageText,
-        deliver: false,
         idempotencyKey: runId,
       };
 
@@ -136,18 +153,19 @@ export function ChatInput() {
   );
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSubmit(inputRef.current?.value ?? "");
       } else if (e.key === "Escape") {
         clearAttachedImage();
         clearBrowserContext();
         if (inputRef.current) inputRef.current.value = "";
+        resetHeight();
         hideChatInput();
       }
     },
-    [handleSubmit, hideChatInput, clearAttachedImage, clearBrowserContext],
+    [handleSubmit, hideChatInput, clearAttachedImage, clearBrowserContext, resetHeight],
   );
 
   const handleRemoveImage = useCallback(() => {
@@ -174,10 +192,10 @@ export function ChatInput() {
           </button>
         </div>
       )}
-      <input
+      <textarea
         ref={inputRef}
         className="chat-input"
-        type="text"
+        rows={1}
         placeholder={
           browserContext
             ? "Ask about this page... (Enter to send)"
@@ -186,7 +204,7 @@ export function ChatInput() {
               : "Ask me anything..."
         }
         onKeyDown={handleKeyDown}
-        maxLength={500}
+        onInput={autoResize}
       />
     </div>
   );
