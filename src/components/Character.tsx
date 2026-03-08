@@ -234,12 +234,16 @@ export function Character() {
       if (action === "read-browser") {
         showSpeechBubble("Reading browser...");
         try {
+          const win = getCurrentWindow();
+          const [pos, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
+          const petX = Math.round(pos.x + size.width / 2);
+          const petY = Math.round(pos.y + size.height / 2);
           const result = await invoke<{
             html: string;
             screenshot: string;
             url: string;
             title: string;
-          }>("read_browser_page");
+          }>("read_browser_page", { petX, petY });
           setBrowserContext(result);
           if (result.screenshot) {
             setAttachedImage({
@@ -261,12 +265,16 @@ export function Character() {
       if (action === "clip-to-obsidian") {
         showSpeechBubble("Reading page...");
         try {
+          const win = getCurrentWindow();
+          const [pos, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
+          const petX = Math.round(pos.x + size.width / 2);
+          const petY = Math.round(pos.y + size.height / 2);
           const result = await invoke<{
             savedPath: string;
             category: string;
             title: string;
             imageCount: number;
-          }>("clip_page_to_obsidian");
+          }>("clip_page_to_obsidian", { petX, petY });
           const imgMsg = result.imageCount > 0 ? ` (+${result.imageCount} images)` : "";
           showSpeechBubble(`Saved to ${result.category}!${imgMsg}`);
         } catch (err) {

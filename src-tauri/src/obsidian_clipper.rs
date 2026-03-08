@@ -353,9 +353,9 @@ fn format_markdown(page: &ExtractedPage, category: &str, image_filenames: &[Stri
 
 // ---------- Main entry point ----------
 
-pub async fn clip_to_obsidian() -> Result<ClipResult, String> {
-    // 1. Connect to Chrome via CDP
-    let target = browser::discover_active_tab().await?;
+pub async fn clip_to_obsidian(pet_x: i32, pet_y: i32) -> Result<ClipResult, String> {
+    // 1. Connect to browser on the same monitor as ClawPet
+    let target = browser::discover_tab_near_position(pet_x, pet_y).await?;
     let ws_url = target
         .web_socket_debugger_url
         .as_deref()

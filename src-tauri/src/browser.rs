@@ -2,24 +2,22 @@ use futures_util::{SinkExt, StreamExt};
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
-use std::env;
 use std::sync::LazyLock;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
-const DEFAULT_CDP_PORT: u16 = 9222;
 const HTML_MAX_BYTES: usize = 100 * 1024; // 100KB
 const CDP_TIMEOUT_SECS: u64 = 15;
 const MAX_SCREENSHOT_BASE64: usize = 6_400_000; // ~4.8MB decoded
 
 // ---------- Data types ----------
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code)]
 pub(crate) struct CdpTarget {
-    id: String,
+    pub id: String,
     #[serde(rename = "type")]
-    target_type: String,
+    pub target_type: String,
     pub title: String,
     pub url: String,
     pub web_socket_debugger_url: Option<String>,
@@ -31,39 +29,6 @@ pub struct BrowserPageData {
     pub screenshot: String,
     pub url: String,
     pub title: String,
-}
-
-// ---------- CDP port ----------
-
-fn get_cdp_port() -> u16 {
-    env::var("CLAWGOTCHI_CDP_PORT")
-        .ok()
-        .and_then(|p| p.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_CDP_PORT)
-}
-
-// ---------- Tab discovery ----------
-
-pub(crate) async fn discover_active_tab() -> Result<CdpTarget, String> {
-    let port = get_cdp_port();
-    let url = format!("http://127.0.0.1:{}/json", port);
-
-    let response = reqwest::get(&url).await.map_err(|_| {
-        if cfg!(target_os = "macos") {
-            "Chrome is not running in debug mode. Restart Chrome with: /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222".to_string()
-        } else {
-            "Chrome is not running in debug mode. Restart Chrome with: chrome.exe --remote-debugging-port=9222".to_string()
-        }
-    })?;
-
-    let targets: Vec<CdpTarget> = response.json().await.map_err(|e| {
-        format!("Failed to parse Chrome debug targets: {}", e)
-    })?;
-
-    targets
-        .into_iter()
-        .find(|t| t.target_type == "page" && t.web_socket_debugger_url.is_some())
-        .ok_or_else(|| "No open tabs found in Chrome.".to_string())
 }
 
 // ---------- CDP WebSocket communication ----------
@@ -255,10 +220,153 @@ fn compress_screenshot_base64(raw_base64: &str) -> Result<String, String> {
     Err("Screenshot too large to attach".to_string())
 }
 
+// ---------- Multi-browser discovery (monitor-aware) ----------
+
+const CDP_PORTS: &[u16] = &[9222, 9223, 9224];
+
+/// Find which monitor contains the given point.
+fn monitor_index_for_point(x: i32, y: i32) -> Option<usize> {
+    let screens = screenshots::Screen::all().ok()?;
+    screens.iter().position(|s| {
+        let info = s.display_info;
+        x >= info.x
+            && x < info.x + info.width as i32
+            && y >= info.y
+            && y < info.y + info.height as i32
+    })
+}
+
+/// Try to get browser window bounds from a CDP browser-level WebSocket.
+async fn get_browser_window_center(browser_ws_url: &str, target_id: &str) -> Option<(i32, i32)> {
+    let commands = vec![serde_json::json!({
+        "method": "Browser.getWindowForTarget",
+        "params": { "targetId": target_id }
+    })];
+
+    let results = cdp_execute(browser_ws_url, commands).await.ok()?;
+    let window_id = results
+        .first()?
+        .pointer("/result/windowId")?
+        .as_i64()?;
+
+    let bounds_commands = vec![serde_json::json!({
+        "method": "Browser.getWindowBounds",
+        "params": { "windowId": window_id }
+    })];
+
+    let bounds_results = cdp_execute(browser_ws_url, bounds_commands).await.ok()?;
+    let bounds = bounds_results.first()?.pointer("/result/bounds")?;
+
+    let left = bounds.get("left")?.as_i64()? as i32;
+    let top = bounds.get("top")?.as_i64()? as i32;
+    let width = bounds.get("width")?.as_i64()? as i32;
+    let height = bounds.get("height")?.as_i64()? as i32;
+
+    Some((left + width / 2, top + height / 2))
+}
+
+/// Discover the active tab in the browser on the same monitor as the given point.
+/// Falls back to first available browser if monitor matching fails.
+pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result<CdpTarget, String> {
+    let pet_monitor = monitor_index_for_point(pet_x, pet_y);
+
+    struct Candidate {
+        target: CdpTarget,
+        monitor: Option<usize>,
+    }
+
+    let mut candidates: Vec<Candidate> = Vec::new();
+
+    for &port in CDP_PORTS {
+        // Try to connect to this port
+        let version_url = format!("http://127.0.0.1:{}/json/version", port);
+        let version_resp = match reqwest::get(&version_url).await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        let version: serde_json::Value = match version_resp.json().await {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let browser_ws = match version
+            .get("webSocketDebuggerUrl")
+            .and_then(|v| v.as_str())
+        {
+            Some(url) => url.to_string(),
+            None => continue,
+        };
+
+        // Get page targets
+        let targets_url = format!("http://127.0.0.1:{}/json", port);
+        let targets: Vec<CdpTarget> = match reqwest::get(&targets_url).await {
+            Ok(r) => match r.json().await {
+                Ok(t) => t,
+                Err(_) => continue,
+            },
+            Err(_) => continue,
+        };
+
+        let page_target = match targets
+            .into_iter()
+            .find(|t| t.target_type == "page" && t.web_socket_debugger_url.is_some())
+        {
+            Some(t) => t,
+            None => continue,
+        };
+
+        // Get browser window position
+        let browser_monitor =
+            if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &page_target.id).await {
+                eprintln!(
+                    "[browser] Port {} window center: ({}, {})",
+                    port, cx, cy
+                );
+                monitor_index_for_point(cx, cy)
+            } else {
+                None
+            };
+
+        eprintln!(
+            "[browser] Port {} -> monitor {:?}, tab: {}",
+            port, browser_monitor, page_target.title
+        );
+
+        candidates.push(Candidate {
+            target: page_target,
+            monitor: browser_monitor,
+        });
+    }
+
+    if candidates.is_empty() {
+        return Err(
+            "No browser with debug mode found. Launch Chrome or Comet with --remote-debugging-port"
+                .to_string(),
+        );
+    }
+
+    // Prefer browser on the same monitor as ClawPet
+    if let Some(pet_mon) = pet_monitor {
+        if let Some(matched) = candidates
+            .iter()
+            .find(|c| c.monitor == Some(pet_mon))
+        {
+            eprintln!(
+                "[browser] Matched browser on monitor {} -> {}",
+                pet_mon, matched.target.title
+            );
+            return Ok(matched.target.clone());
+        }
+    }
+
+    // Fallback: first available browser
+    eprintln!("[browser] No monitor match, using first available browser");
+    Ok(candidates.into_iter().next().unwrap().target)
+}
+
 // ---------- Main entry point ----------
 
-pub async fn read_page() -> Result<BrowserPageData, String> {
-    let target = discover_active_tab().await?;
+pub async fn read_page(pet_x: i32, pet_y: i32) -> Result<BrowserPageData, String> {
+    let target = discover_tab_near_position(pet_x, pet_y).await?;
     let ws_url = target
         .web_socket_debugger_url
         .as_deref()

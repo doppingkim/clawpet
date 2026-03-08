@@ -320,13 +320,13 @@ async fn capture_screen_for_point(x: i32, y: i32) -> Result<FetchImageResult, St
 }
 
 #[tauri::command]
-async fn read_browser_page() -> Result<browser::BrowserPageData, String> {
-    browser::read_page().await
+async fn read_browser_page(pet_x: i32, pet_y: i32) -> Result<browser::BrowserPageData, String> {
+    browser::read_page(pet_x, pet_y).await
 }
 
 #[tauri::command]
-async fn clip_page_to_obsidian() -> Result<obsidian_clipper::ClipResult, String> {
-    obsidian_clipper::clip_to_obsidian().await
+async fn clip_page_to_obsidian(pet_x: i32, pet_y: i32) -> Result<obsidian_clipper::ClipResult, String> {
+    obsidian_clipper::clip_to_obsidian(pet_x, pet_y).await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
