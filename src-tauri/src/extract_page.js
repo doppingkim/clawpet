@@ -1,7 +1,8 @@
 (() => {
   const host = location.hostname;
   const path = location.pathname;
-  const isX = host.includes('x.com') || host.includes('twitter.com');
+  const isX = host === 'x.com' || host === 'twitter.com'
+    || host.endsWith('.x.com') || host.endsWith('.twitter.com');
 
   const r = {
     pageType: 'web',
@@ -85,7 +86,7 @@
             }
             break;
           }
-          if (href && !href.startsWith('javascript:')) {
+          if (href && !/^\s*javascript\s*:/i.test(href)) {
             md += '[' + inner.trim() + '](' + href + ')';
           } else {
             md += inner;
