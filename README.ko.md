@@ -22,7 +22,9 @@ ClawPet은 데스크톱 위에 항상 떠 있으면서 OpenClaw Gateway(WebSocke
   - 클립보드 이미지 붙여넣기
 - 영역 캡처(드래그 선택) 후 즉시 첨부
 - 전체화면 캡처(현재 캐릭터가 있는 모니터 기준) 후 즉시 첨부
-- **브라우저 읽기**: Chrome DevTools Protocol(CDP)으로 현재 Chrome 탭의 DOM + 스크린샷을 읽어서 AI에게 질문
+- **브라우저 읽기**: Chrome DevTools Protocol(CDP)으로 현재 브라우저 탭의 DOM + 스크린샷을 읽어서 AI에게 질문
+- **Obsidian 저장**: 웹 페이지 및 X 게시물/스레드/아티클을 마크다운 + 이미지로 Obsidian 볼트에 자동 저장
+- **멀티 브라우저 지원**: Chrome, Comet(Perplexity), 기타 Chromium 브라우저 — ClawPet과 같은 모니터의 브라우저를 자동 감지
 - ClawPet 전용 로컬 대화 기록 저장/조회
 - 외부 채널 메시지 큐 UX(편지 도착 알림)
 - OpenClaw `identity.md` 기반 이름표
@@ -151,20 +153,34 @@ OPENCLAW_GATEWAY_TOKEN=...
 - 화면 캡처 이미지는 채팅 첨부 제한에 맞춰 자동 압축
 - 비이미지 파일 첨부(`csv`, `xlsx`, `doc`, `pdf`, `txt`)는 아직 미지원
 
-## 브라우저 읽기 설정
+## 브라우저 읽기 & Obsidian 저장 설정
 
-ClawPet이 현재 열려있는 Chrome 탭(HTML + 스크린샷)을 읽어서, 해당 페이지에 대해 AI에게 질문할 수 있습니다.
+ClawPet이 현재 열려있는 브라우저 탭을 읽어서 AI에게 질문하거나, 웹 페이지/X 게시물을 Obsidian 볼트에 바로 저장할 수 있습니다.
 
-### 사전 준비
+### 지원 브라우저
 
-Chrome을 원격 디버깅 포트가 활성화된 상태로 실행해야 합니다. 기존 Chrome과 충돌을 피하기 위해 별도 프로필 사용을 권장합니다.
+Chromium 기반 브라우저는 모두 지원됩니다: Chrome, Comet(Perplexity), Brave, Edge 등. 각 브라우저마다 별도 CDP 포트가 필요합니다.
+
+| 브라우저 | 권장 포트 | 플래그 |
+|---------|----------|-------|
+| Chrome | 9222 | `--remote-debugging-port=9222` |
+| Comet | 9223 | `--remote-debugging-port=9223` |
+| 기타 | 9224 | `--remote-debugging-port=9224` |
+
+ClawPet은 포트 9222~9224를 스캔하여 **ClawPet과 같은 모니터**에 있는 브라우저를 자동 선택합니다.
 
 ### Windows
 
 아래 플래그로 바로가기를 만드세요:
 
+**Chrome** (별도 프로필 필요):
 ```
 chrome.exe --remote-debugging-port=9222 --remote-allow-origins=* --user-data-dir="%LOCALAPPDATA%\ClawGotchi\chrome-debug-profile"
+```
+
+**Comet** (별도 프로필 불필요):
+```
+comet.exe --remote-debugging-port=9223 --remote-allow-origins=*
 ```
 
 ### macOS
@@ -176,19 +192,30 @@ chrome.exe --remote-debugging-port=9222 --remote-allow-origins=* --user-data-dir
   --user-data-dir="$HOME/Library/Application Support/ClawGotchi/chrome-debug-profile"
 ```
 
-### 사용법
+### 사용법: 브라우저 읽기
 
-1. 위 바로가기/명령어로 Chrome 실행 (구글 계정 로그인하면 즐겨찾기 등 동기화 가능)
+1. 디버그 플래그로 브라우저 실행
 2. 원하는 웹페이지로 이동
 3. ClawPet 우클릭 → **Read browser page**
 4. 채팅 입력창에 브라우저 컨텍스트 표시가 나타남
 5. 페이지에 대해 질문 입력 (빈 채로 Enter 시 기본 요약 생성)
 
+### 사용법: Obsidian 저장
+
+1. 디버그 플래그로 브라우저 실행
+2. X 게시물, X 스레드, X 아티클, 또는 일반 웹 페이지로 이동
+3. ClawPet 우클릭 → **Save to Obsidian**
+4. 페이지가 자동 분류(coding/markets)되어 마크다운 + 이미지로 저장
+
+Obsidian 볼트 경로 기본값은 `C:\obsidian\doyeon\03 Resources`이며 환경변수로 변경 가능:
+- `CLAWPET_OBSIDIAN_BASE` — 마크다운 저장 폴더
+- `CLAWPET_OBSIDIAN_IMG_DIR` — 이미지 저장 폴더
+
 ### 참고사항
 
-- 디버깅 플래그로 실행하기 전에 기존 Chrome 창을 모두 닫아야 합니다
-- 디버그 포트는 `CLAWGOTCHI_CDP_PORT` 환경변수로 변경 가능 (기본값: 9222)
+- Chrome은 디버깅 플래그 실행 전에 기존 창을 모두 닫아야 합니다 (Comet 등 다른 브라우저는 제약 없음)
 - 스크린샷은 현재 보이는 화면만 캡처됩니다. HTML/DOM은 전체 페이지를 가져옵니다
+- 시크릿/프라이빗 창도 지원됩니다
 
 ## 트러블슈팅
 
