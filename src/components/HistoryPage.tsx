@@ -33,9 +33,16 @@ export function HistoryPage() {
   }, []);
 
   useEffect(() => {
-    if (listRef.current) {
-      listRef.current.scrollTop = listRef.current.scrollHeight;
-    }
+    const scrollToBottom = () => {
+      if (listRef.current) {
+        listRef.current.scrollTop = listRef.current.scrollHeight;
+      }
+    };
+    // Scroll after layout + after fonts/content fully rendered
+    requestAnimationFrame(() => {
+      scrollToBottom();
+      setTimeout(scrollToBottom, 100);
+    });
   }, [entries]);
 
   const titleText = useMemo(() => {

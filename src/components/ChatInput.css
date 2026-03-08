@@ -31,7 +31,7 @@
   color: #222;
   outline: none;
   resize: none;
-  overflow-y: auto;
+  overflow-y: hidden;
   min-height: 35px;
   max-height: 110px;
 }

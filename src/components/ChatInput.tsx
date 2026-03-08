@@ -41,6 +41,8 @@ export function ChatInput() {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
+    const maxH = 110;
+    el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
     el.style.height = el.scrollHeight + "px";
   }, []);
 
