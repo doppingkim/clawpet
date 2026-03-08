@@ -51,7 +51,7 @@ interface ClawPetState {
   hideChatInput: () => void;
   setChatLoading: (loading: boolean) => void;
   setChatRunId: (id: string | null) => void;
-  appendStreamingText: (text: string) => void;
+  setStreamingText: (text: string) => void;
   clearStreamingText: () => void;
 
   setAttachedImage: (img: { dataUrl: string; mimeType: string }) => void;
@@ -103,7 +103,7 @@ export const useStore = create<ClawPetState>((set) => ({
   hideChatInput: () => set({ chatInputVisible: false }),
   setChatLoading: (chatLoading) => set({ chatLoading }),
   setChatRunId: (chatRunId) => set({ chatRunId }),
-  appendStreamingText: (text) => set({ streamingText: text }),
+  setStreamingText: (text) => set({ streamingText: text }),
   clearStreamingText: () => set({ streamingText: "" }),
 
   setAttachedImage: (img) => set({ attachedImage: img }),

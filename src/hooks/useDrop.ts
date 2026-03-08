@@ -110,6 +110,11 @@ export function useDrop() {
   const handleImageUrl = useCallback(
     async (url: string) => {
       if (url.startsWith("data:image/")) {
+        // Enforce size limit on data URLs (base64 ≈ 1.37x raw size)
+        if (url.length > MAX_SIZE * 1.4) {
+          showSpeechBubble(IMAGE_SIZE_LIMIT_MESSAGE);
+          return;
+        }
         const parsed = parseDataImageUrl(url);
         if (!parsed) return;
         storeImageFromBase64(parsed.base64, parsed.mimeType);

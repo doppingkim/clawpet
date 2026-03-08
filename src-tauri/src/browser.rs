@@ -102,6 +102,9 @@ pub(crate) async fn cdp_execute(ws_url: &str, commands: Vec<Value>) -> Result<Ve
         }
     }
 
+    // Properly close the WebSocket connection
+    let _ = writer.close().await;
+
     // Return results in order, replacing None with null
     Ok(results
         .into_iter()

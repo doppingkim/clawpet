@@ -21,7 +21,7 @@ export function useGateway() {
   const setGatewayConfig = useStore((s) => s.setGatewayConfig);
   const setSessionKey = useStore((s) => s.setSessionKey);
   const setCharacterAnimation = useStore((s) => s.setCharacterAnimation);
-  const appendStreamingText = useStore((s) => s.appendStreamingText);
+  const setStreamingText = useStore((s) => s.setStreamingText);
   const showSpeechBubble = useStore((s) => s.showSpeechBubble);
   const enqueueExternalLetter = useStore((s) => s.enqueueExternalLetter);
   const setChatRunId = useStore((s) => s.setChatRunId);
@@ -125,7 +125,7 @@ export function useGateway() {
       if (payload.state === "delta") {
         const text = extractText(payload.message);
         if (typeof text === "string") {
-          appendStreamingText(text);
+          setStreamingText(text);
           showSpeechBubble(text);
           setCharacterAnimation("talking");
         }
@@ -186,7 +186,7 @@ export function useGateway() {
     setGatewayConfig,
     setSessionKey,
     setCharacterAnimation,
-    appendStreamingText,
+    setStreamingText,
     showSpeechBubble,
     enqueueExternalLetter,
     setChatRunId,

@@ -48,6 +48,10 @@ export class GatewayClient {
       clearTimeout(this.connectTimer);
       this.connectTimer = null;
     }
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.ws?.close();
     this.ws = null;
     this.flushPending(new Error("gateway client stopped"));
@@ -87,11 +91,16 @@ export class GatewayClient {
     });
   }
 
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
   private scheduleReconnect() {
     if (this.closed) return;
     const delay = this.backoffMs;
     this.backoffMs = Math.min(this.backoffMs * 1.7, 15_000);
-    setTimeout(() => this.connect(), delay);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delay);
   }
 
   private flushPending(err: Error) {

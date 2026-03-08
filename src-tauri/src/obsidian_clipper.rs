@@ -4,25 +4,21 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-const DEFAULT_OBSIDIAN_BASE: &str = r"C:\obsidian\doyeon\03 Resources";
-const DEFAULT_OBSIDIAN_IMG_DIR: &str = r"C:\obsidian\doyeon\03 Resources\ref_img";
 const EXTRACTION_JS: &str = include_str!("extract_page.js");
 
 static RE_IMG_PLACEHOLDER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{\{IMG:\d+\}\}").unwrap());
 
-fn obsidian_base_dir() -> PathBuf {
-    PathBuf::from(
-        std::env::var("CLAWPET_OBSIDIAN_BASE")
-            .unwrap_or_else(|_| DEFAULT_OBSIDIAN_BASE.to_string()),
-    )
+fn obsidian_base_dir() -> Result<PathBuf, String> {
+    std::env::var("CLAWPET_OBSIDIAN_BASE")
+        .map(PathBuf::from)
+        .map_err(|_| "CLAWPET_OBSIDIAN_BASE is not set. Set it to your Obsidian vault markdown folder (e.g. /Users/you/obsidian/vault/Resources).".to_string())
 }
 
-fn obsidian_img_dir() -> PathBuf {
-    PathBuf::from(
-        std::env::var("CLAWPET_OBSIDIAN_IMG_DIR")
-            .unwrap_or_else(|_| DEFAULT_OBSIDIAN_IMG_DIR.to_string()),
-    )
+fn obsidian_img_dir() -> Result<PathBuf, String> {
+    std::env::var("CLAWPET_OBSIDIAN_IMG_DIR")
+        .map(PathBuf::from)
+        .map_err(|_| "CLAWPET_OBSIDIAN_IMG_DIR is not set. Set it to your Obsidian vault image folder (e.g. /Users/you/obsidian/vault/Resources/images).".to_string())
 }
 
 #[derive(Deserialize, Debug)]
@@ -115,7 +111,7 @@ fn slugify(text: &str) -> String {
 }
 
 fn format_date(iso: &str) -> String {
-    if iso.len() >= 10 {
+    if iso.len() >= 10 && iso.is_char_boundary(10) {
         iso[..10].to_string()
     } else {
         String::new()
@@ -208,7 +204,44 @@ fn compress_to_jpeg(raw_bytes: &[u8], quality: u8) -> Result<Vec<u8>, String> {
     Ok(buf)
 }
 
+fn is_safe_image_url(url: &str) -> bool {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return false;
+    };
+    let scheme = parsed.scheme();
+    if scheme != "http" && scheme != "https" {
+        return false;
+    }
+    if let Some(host) = parsed.host_str() {
+        let lower = host.to_lowercase();
+        if lower == "localhost"
+            || lower == "127.0.0.1"
+            || lower == "[::1]"
+            || lower.ends_with(".local")
+            || lower.starts_with("10.")
+            || lower.starts_with("192.168.")
+            || lower.starts_with("169.254.")
+            || lower.starts_with("fd")
+            || lower.starts_with("fe80")
+            || (lower.starts_with("172.") && {
+                lower
+                    .split('.')
+                    .nth(1)
+                    .and_then(|s| s.parse::<u8>().ok())
+                    .map_or(false, |n| (16..=31).contains(&n))
+            })
+        {
+            return false;
+        }
+    }
+    true
+}
+
 async fn download_image(url: &str) -> Result<(Vec<u8>, String), String> {
+    if !is_safe_image_url(url) {
+        return Err(format!("URL not allowed: {}", url));
+    }
+
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
         .build()
@@ -244,8 +277,19 @@ async fn download_image(url: &str) -> Result<(Vec<u8>, String), String> {
             Ok((compressed, "jpg".to_string()))
         }
         Err(_) => {
-            // If compression fails, save original
-            Ok((raw, "jpg".to_string()))
+            // If compression fails, save original with detected extension
+            let ext = if raw.len() >= 4 && raw[..4] == [0x89, 0x50, 0x4E, 0x47] {
+                "png"
+            } else if raw.len() >= 4 && &raw[..4] == b"RIFF" {
+                "webp"
+            } else if raw.len() >= 3 && raw[..3] == [0xFF, 0xD8, 0xFF] {
+                "jpg"
+            } else if raw.len() >= 4 && &raw[..4] == b"GIF8" {
+                "gif"
+            } else {
+                "jpg"
+            };
+            Ok((raw, ext.to_string()))
         }
     }
 }
@@ -425,7 +469,7 @@ pub async fn clip_to_obsidian(pet_x: i32, pet_y: i32) -> Result<ClipResult, Stri
     let category = categorize(&page.text_hints);
 
     // 4. Create target folder
-    let folder = obsidian_base_dir().join(category);
+    let folder = obsidian_base_dir()?.join(category);
     std::fs::create_dir_all(&folder)
         .map_err(|e| format!("Failed to create Obsidian folder: {}", e))?;
 
@@ -433,7 +477,7 @@ pub async fn clip_to_obsidian(pet_x: i32, pet_y: i32) -> Result<ClipResult, Stri
     let base_name = generate_base_name(&page);
 
     // 6. Download and save images to separate ref_img folder
-    let img_folder = obsidian_img_dir();
+    let img_folder = obsidian_img_dir()?;
     std::fs::create_dir_all(&img_folder)
         .map_err(|e| format!("Failed to create image folder: {}", e))?;
 

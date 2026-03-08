@@ -207,9 +207,23 @@ comet.exe --remote-debugging-port=9223 --remote-allow-origins=*
 3. ClawPet 우클릭 → **Save to Obsidian**
 4. 페이지가 자동 분류(coding/markets)되어 마크다운 + 이미지로 저장
 
-Obsidian 볼트 경로 기본값은 `C:\obsidian\doyeon\03 Resources`이며 환경변수로 변경 가능:
-- `CLAWPET_OBSIDIAN_BASE` — 마크다운 저장 폴더
-- `CLAWPET_OBSIDIAN_IMG_DIR` — 이미지 저장 폴더
+**필수 설정**: Obsidian 저장 기능을 사용하려면 아래 환경변수를 반드시 설정해야 합니다. 미설정 시 에러가 표시됩니다.
+
+`.env` 파일 또는 시스템 환경변수에 추가하세요:
+
+```bash
+# Obsidian 볼트 마크다운 저장 폴더 (하위에 coding, markets 폴더가 자동 생성됩니다)
+CLAWPET_OBSIDIAN_BASE=/Users/you/obsidian/vault/Resources
+
+# Obsidian 볼트 이미지 저장 폴더
+CLAWPET_OBSIDIAN_IMG_DIR=/Users/you/obsidian/vault/Resources/images
+```
+
+Windows 예시:
+```powershell
+$env:CLAWPET_OBSIDIAN_BASE="C:\obsidian\myvault\Resources"
+$env:CLAWPET_OBSIDIAN_IMG_DIR="C:\obsidian\myvault\Resources\ref_img"
+```
 
 ### 참고사항
 

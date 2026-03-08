@@ -214,9 +214,23 @@ comet.exe --remote-debugging-port=9223 --remote-allow-origins=*
 3. Right-click ClawPet → **Save to Obsidian**
 4. The page is auto-categorized (coding/markets) and saved as markdown with images
 
-Obsidian vault paths default to `C:\obsidian\doyeon\03 Resources` and can be customized via:
-- `CLAWPET_OBSIDIAN_BASE` — markdown save folder
-- `CLAWPET_OBSIDIAN_IMG_DIR` — image save folder
+**Required**: You must set your Obsidian vault paths before using this feature. Without these, "Save to Obsidian" will show an error.
+
+Set the following environment variables (or add them to your `.env` file):
+
+```bash
+# Your Obsidian vault folder for markdown files (sub-folders "coding" and "markets" are auto-created)
+CLAWPET_OBSIDIAN_BASE=/Users/you/obsidian/vault/Resources
+
+# Your Obsidian vault folder for images
+CLAWPET_OBSIDIAN_IMG_DIR=/Users/you/obsidian/vault/Resources/images
+```
+
+Windows example:
+```powershell
+$env:CLAWPET_OBSIDIAN_BASE="C:\obsidian\myvault\Resources"
+$env:CLAWPET_OBSIDIAN_IMG_DIR="C:\obsidian\myvault\Resources\ref_img"
+```
 
 ### Notes
 

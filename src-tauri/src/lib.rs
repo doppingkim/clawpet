@@ -53,6 +53,16 @@ fn is_safe_url(url: &str) -> bool {
             || lower.ends_with(".local")
             || lower.starts_with("10.")
             || lower.starts_with("192.168.")
+            || lower.starts_with("169.254.")
+            || lower.starts_with("fd")
+            || lower.starts_with("fe80")
+            || (lower.starts_with("172.") && {
+                lower
+                    .split('.')
+                    .nth(1)
+                    .and_then(|s| s.parse::<u8>().ok())
+                    .map_or(false, |n| (16..=31).contains(&n))
+            })
         {
             return false;
         }
@@ -363,6 +373,9 @@ async fn clip_page_to_obsidian(pet_x: i32, pet_y: i32) -> Result<obsidian_clippe
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file (from project root or current dir) — ignore if missing
+    let _ = dotenvy::dotenv();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
@@ -437,6 +450,9 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .unwrap_or_else(|err| {
+            eprintln!("Fatal: failed to start Tauri application: {}", err);
+            std::process::exit(1);
+        });
 }
 

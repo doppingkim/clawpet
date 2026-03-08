@@ -130,6 +130,7 @@ export function ChatInput() {
           setChatRunId(res.runId);
         }
       } catch (err) {
+        clearStreamingText();
         showSpeechBubble(`Error: ${err}`);
         setChatLoading(false);
         setChatRunId(null);

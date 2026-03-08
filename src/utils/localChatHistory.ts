@@ -55,7 +55,11 @@ export function readLocalChatHistory(): LocalChatEntry[] {
 
 function writeLocalChatHistory(entries: LocalChatEntry[]) {
   if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  } catch (err) {
+    console.error("[localChatHistory] Failed to write localStorage:", err);
+  }
 }
 
 export function appendLocalChatHistory(role: LocalChatRole, text: string): LocalChatEntry | null {
