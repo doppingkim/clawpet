@@ -1,5 +1,6 @@
 mod browser;
 mod config_reader;
+mod image_saver;
 mod obsidian_clipper;
 
 use std::io::Cursor;
@@ -371,10 +372,31 @@ async fn clip_page_to_obsidian(pet_x: i32, pet_y: i32) -> Result<obsidian_clippe
     obsidian_clipper::clip_to_obsidian(pet_x, pet_y).await
 }
 
+#[tauri::command]
+async fn save_browser_images(pet_x: i32, pet_y: i32) -> Result<image_saver::ImageSaveResult, String> {
+    image_saver::save_browser_images(pet_x, pet_y).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Load .env file (from project root or current dir) — ignore if missing
-    let _ = dotenvy::dotenv();
+    // Load .env file: try current dir first, then fall back to exe's directory
+    let cwd = std::env::current_dir().ok();
+    eprintln!("[dotenv] CWD = {:?}", cwd);
+    match dotenvy::dotenv() {
+        Ok(path) => eprintln!("[dotenv] Loaded from CWD: {:?}", path),
+        Err(e) => {
+            eprintln!("[dotenv] CWD .env failed: {}", e);
+            if let Ok(exe) = std::env::current_exe() {
+                let env_path = exe.parent().unwrap().join(".env");
+                eprintln!("[dotenv] Trying exe dir: {:?}", env_path);
+                match dotenvy::from_path(&env_path) {
+                    Ok(()) => eprintln!("[dotenv] Loaded from exe dir"),
+                    Err(e2) => eprintln!("[dotenv] exe dir .env failed: {}", e2),
+                }
+            }
+        }
+    }
+    eprintln!("[dotenv] CLAWPET_OBSIDIAN_BASE = {:?}", std::env::var("CLAWPET_OBSIDIAN_BASE"));
 
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
@@ -388,7 +410,8 @@ pub fn run() {
             capture_screen_display,
             capture_screen_for_point,
             read_browser_page,
-            clip_page_to_obsidian
+            clip_page_to_obsidian,
+            save_browser_images
         ])
         .setup(|app| {
             // Build tray menu

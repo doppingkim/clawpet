@@ -6,7 +6,7 @@ use std::sync::LazyLock;
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 const HTML_MAX_BYTES: usize = 100 * 1024; // 100KB
-const CDP_TIMEOUT_SECS: u64 = 15;
+const CDP_TIMEOUT_SECS: u64 = 30;
 const MAX_SCREENSHOT_BASE64: usize = 6_400_000; // ~4.8MB decoded
 
 // ---------- Data types ----------
@@ -31,7 +31,77 @@ pub struct BrowserPageData {
     pub title: String,
 }
 
-// ---------- CDP WebSocket communication ----------
+// ---------- CDP session (persistent connection) ----------
+
+type WsStream = tokio_tungstenite::WebSocketStream<
+    tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+>;
+
+/// A reusable CDP session that keeps a single WebSocket connection open.
+/// Use this instead of `cdp_execute` when sending multiple commands to the same target.
+pub(crate) struct CdpSession {
+    stream: WsStream,
+    next_id: u64,
+}
+
+impl CdpSession {
+    pub async fn connect(ws_url: &str) -> Result<Self, String> {
+        let (stream, _) = connect_async(ws_url)
+            .await
+            .map_err(|e| format!("WebSocket connection failed: {}", e))?;
+        Ok(Self {
+            stream,
+            next_id: 1,
+        })
+    }
+
+    pub async fn send(&mut self, mut command: Value) -> Result<Value, String> {
+        let id = self.next_id;
+        self.next_id += 1;
+
+        if let Some(obj) = command.as_object_mut() {
+            obj.insert("id".to_string(), serde_json::json!(id));
+        }
+
+        let text =
+            serde_json::to_string(&command).map_err(|e| format!("JSON encode error: {}", e))?;
+        self.stream
+            .send(Message::Text(text.into()))
+            .await
+            .map_err(|e| format!("WebSocket send error: {}", e))?;
+
+        let deadline =
+            tokio::time::Instant::now() + tokio::time::Duration::from_secs(CDP_TIMEOUT_SECS);
+
+        loop {
+            let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+            if remaining.is_zero() {
+                return Err("CDP command timed out".to_string());
+            }
+
+            match tokio::time::timeout(remaining, self.stream.next()).await {
+                Ok(Some(Ok(Message::Text(text)))) => {
+                    if let Ok(parsed) = serde_json::from_str::<Value>(&text) {
+                        if parsed.get("id").and_then(|v| v.as_u64()) == Some(id) {
+                            return Ok(parsed);
+                        }
+                        // CDP event or unrelated response — skip
+                    }
+                }
+                Ok(Some(Ok(_))) => {} // non-text frame, skip
+                Ok(Some(Err(e))) => return Err(format!("WebSocket read error: {}", e)),
+                Ok(None) => return Err("WebSocket closed unexpectedly".to_string()),
+                Err(_) => return Err("CDP command timed out".to_string()),
+            }
+        }
+    }
+
+    pub async fn close(mut self) {
+        let _ = SinkExt::close(&mut self.stream).await;
+    }
+}
+
+// ---------- CDP WebSocket communication (one-shot) ----------
 
 pub(crate) async fn cdp_execute(ws_url: &str, commands: Vec<Value>) -> Result<Vec<Value>, String> {
     let (ws_stream, _) = connect_async(ws_url)
@@ -268,14 +338,36 @@ async fn get_browser_window_center(browser_ws_url: &str, target_id: &str) -> Opt
     Some((left + width / 2, top + height / 2))
 }
 
+/// Check which tab is visible (active) by running document.visibilityState via CDP.
+async fn check_tab_visible(ws_url: &str) -> bool {
+    let commands = vec![serde_json::json!({
+        "method": "Runtime.evaluate",
+        "params": {
+            "expression": "document.visibilityState",
+            "returnByValue": true
+        }
+    })];
+    if let Ok(results) = cdp_execute(ws_url, commands).await {
+        if let Some(val) = results
+            .first()
+            .and_then(|r| r.pointer("/result/result/value"))
+            .and_then(|v| v.as_str())
+        {
+            return val == "visible";
+        }
+    }
+    false
+}
+
 /// Discover the active tab in the browser on the same monitor as the given point.
-/// Falls back to first available browser if monitor matching fails.
+/// Prefers visible (active) tabs. Falls back to first available if no match.
 pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result<CdpTarget, String> {
     let pet_monitor = monitor_index_for_point(pet_x, pet_y);
 
     struct Candidate {
         target: CdpTarget,
         monitor: Option<usize>,
+        visible: bool,
     }
 
     let mut candidates: Vec<Candidate> = Vec::new();
@@ -299,7 +391,7 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
             None => continue,
         };
 
-        // Get page targets
+        // Get ALL page targets (not just the first one)
         let targets_url = format!("http://127.0.0.1:{}/json", port);
         let targets: Vec<CdpTarget> = match reqwest::get(&targets_url).await {
             Ok(r) => match r.json().await {
@@ -309,17 +401,18 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
             Err(_) => continue,
         };
 
-        let page_target = match targets
+        let page_targets: Vec<CdpTarget> = targets
             .into_iter()
-            .find(|t| t.target_type == "page" && t.web_socket_debugger_url.is_some())
-        {
-            Some(t) => t,
-            None => continue,
-        };
+            .filter(|t| t.target_type == "page" && t.web_socket_debugger_url.is_some())
+            .collect();
 
-        // Get browser window position
+        if page_targets.is_empty() {
+            continue;
+        }
+
+        // Get browser window position (use first target for window bounds)
         let browser_monitor =
-            if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &page_target.id).await {
+            if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &page_targets[0].id).await {
                 eprintln!(
                     "[browser] Port {} window center: ({}, {})",
                     port, cx, cy
@@ -329,15 +422,25 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
                 None
             };
 
-        eprintln!(
-            "[browser] Port {} -> monitor {:?}, tab: {}",
-            port, browser_monitor, page_target.title
-        );
+        // Check visibility for each tab
+        for target in page_targets {
+            let visible = if let Some(ws) = &target.web_socket_debugger_url {
+                check_tab_visible(ws).await
+            } else {
+                false
+            };
 
-        candidates.push(Candidate {
-            target: page_target,
-            monitor: browser_monitor,
-        });
+            eprintln!(
+                "[browser] Port {} tab: {} (visible={}, monitor={:?})",
+                port, target.title, visible, browser_monitor
+            );
+
+            candidates.push(Candidate {
+                target,
+                monitor: browser_monitor,
+                visible,
+            });
+        }
     }
 
     if candidates.is_empty() {
@@ -347,22 +450,45 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
         );
     }
 
-    // Prefer browser on the same monitor as ClawPet
+    // Priority 1: Visible tab on the same monitor as ClawPet
     if let Some(pet_mon) = pet_monitor {
         if let Some(matched) = candidates
             .iter()
-            .find(|c| c.monitor == Some(pet_mon))
+            .find(|c| c.visible && c.monitor == Some(pet_mon))
         {
             eprintln!(
-                "[browser] Matched browser on monitor {} -> {}",
+                "[browser] Best match: visible tab on monitor {} -> {}",
                 pet_mon, matched.target.title
             );
             return Ok(matched.target.clone());
         }
     }
 
-    // Fallback: first available browser
-    eprintln!("[browser] No monitor match, using first available browser");
+    // Priority 2: Any visible tab
+    if let Some(matched) = candidates.iter().find(|c| c.visible) {
+        eprintln!(
+            "[browser] Using visible tab: {}",
+            matched.target.title
+        );
+        return Ok(matched.target.clone());
+    }
+
+    // Priority 3: Any tab on same monitor
+    if let Some(pet_mon) = pet_monitor {
+        if let Some(matched) = candidates
+            .iter()
+            .find(|c| c.monitor == Some(pet_mon))
+        {
+            eprintln!(
+                "[browser] Using tab on monitor {}: {}",
+                pet_mon, matched.target.title
+            );
+            return Ok(matched.target.clone());
+        }
+    }
+
+    // Fallback: first available
+    eprintln!("[browser] No match, using first available tab");
     Ok(candidates.into_iter().next().unwrap().target)
 }
 

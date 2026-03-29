@@ -17,7 +17,7 @@ const SPRITE_MAP = {
 const ENABLE_AREA_CAPTURE = import.meta.env.VITE_ENABLE_AREA_CAPTURE !== "false";
 const DEFAULT_NAME = "OpenClaw";
 
-type ActionId = "capture-area" | "capture-display" | "read-browser" | "history" | "clip-to-obsidian";
+type ActionId = "capture-area" | "capture-display" | "read-browser" | "history" | "clip-to-obsidian" | "save-images";
 type OpenClawIdentity = { name?: string | null };
 type CaptureResult = { base64: string; mime_type: string };
 
@@ -26,6 +26,7 @@ const MENU_ACTIONS: Array<{ id: ActionId; label: string; shortLabel: string }> =
   { id: "capture-display", label: "Full screen capture", shortLabel: "전체캡처" },
   { id: "read-browser", label: "Read browser page", shortLabel: "페이지읽기" },
   { id: "clip-to-obsidian", label: "Save to Obsidian", shortLabel: "옵시디언저장" },
+  { id: "save-images", label: "Save page images", shortLabel: "이미지저장" },
   { id: "history", label: "Conversation history", shortLabel: "대화기록" },
 ];
 
@@ -200,6 +201,24 @@ export function Character() {
       }
       if (action === "history") {
         void openHistoryWindow();
+        return;
+      }
+      if (action === "save-images") {
+        showSpeechBubble("Saving images...");
+        try {
+          const win = getCurrentWindow();
+          const [pos, size] = await Promise.all([win.outerPosition(), win.outerSize()]);
+          const petX = Math.round(pos.x + size.width / 2);
+          const petY = Math.round(pos.y + size.height / 2);
+          const result = await invoke<{
+            savedCount: number;
+            slideNumber: number;
+            saveDir: string;
+          }>("save_browser_images", { petX, petY });
+          showSpeechBubble(`Slide ${String(result.slideNumber).padStart(2, "0")}: ${result.savedCount} images saved!`);
+        } catch (err) {
+          showSpeechBubble(String(err));
+        }
         return;
       }
       if (action === "clip-to-obsidian") {
