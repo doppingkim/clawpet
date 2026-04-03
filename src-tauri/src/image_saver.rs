@@ -183,7 +183,8 @@ pub async fn save_browser_images(pet_x: i32, pet_y: i32) -> Result<ImageSaveResu
             .send(serde_json::json!({
                 "method": "Page.captureScreenshot",
                 "params": {
-                    "format": "png",
+                    "format": "webp",
+                    "quality": 85,
                     "clip": {
                         "x": rect.x,
                         "y": rect.y,
@@ -208,18 +209,18 @@ pub async fn save_browser_images(pet_x: i32, pet_y: i32) -> Result<ImageSaveResu
         };
 
         use base64::Engine;
-        let png_bytes = match base64::engine::general_purpose::STANDARD.decode(screenshot_b64) {
+        let webp_bytes = match base64::engine::general_purpose::STANDARD.decode(screenshot_b64) {
             Ok(b) => b,
             Err(_) => continue,
         };
 
         let filename = format!(
-            "{}-Slide-{:02}-Img-{:02}.png",
+            "{}-Slide-{:02}-Img-{:02}.webp",
             today,
             slide_num,
             saved_count + 1
         );
-        if std::fs::write(save_dir.join(&filename), &png_bytes).is_ok() {
+        if std::fs::write(save_dir.join(&filename), &webp_bytes).is_ok() {
             saved_count += 1;
         }
     }

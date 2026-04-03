@@ -339,24 +339,30 @@ async fn get_browser_window_center(browser_ws_url: &str, target_id: &str) -> Opt
 }
 
 /// Check which tab is visible (active) by running document.visibilityState via CDP.
+/// Uses a short timeout to avoid blocking on broken/unresponsive tabs.
 async fn check_tab_visible(ws_url: &str) -> bool {
-    let commands = vec![serde_json::json!({
-        "method": "Runtime.evaluate",
-        "params": {
-            "expression": "document.visibilityState",
-            "returnByValue": true
+    let fut = async {
+        let commands = vec![serde_json::json!({
+            "method": "Runtime.evaluate",
+            "params": {
+                "expression": "document.visibilityState",
+                "returnByValue": true
+            }
+        })];
+        if let Ok(results) = cdp_execute(ws_url, commands).await {
+            if let Some(val) = results
+                .first()
+                .and_then(|r| r.pointer("/result/result/value"))
+                .and_then(|v| v.as_str())
+            {
+                return val == "visible";
+            }
         }
-    })];
-    if let Ok(results) = cdp_execute(ws_url, commands).await {
-        if let Some(val) = results
-            .first()
-            .and_then(|r| r.pointer("/result/result/value"))
-            .and_then(|v| v.as_str())
-        {
-            return val == "visible";
-        }
-    }
-    false
+        false
+    };
+    tokio::time::timeout(tokio::time::Duration::from_secs(3), fut)
+        .await
+        .unwrap_or(false)
 }
 
 /// Discover the active tab in the browser on the same monitor as the given point.
@@ -410,20 +416,19 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
             continue;
         }
 
-        // Get browser window position (use first target for window bounds)
-        let browser_monitor =
-            if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &page_targets[0].id).await {
-                eprintln!(
-                    "[browser] Port {} window center: ({}, {})",
-                    port, cx, cy
-                );
-                monitor_index_for_point(cx, cy)
-            } else {
-                None
-            };
-
-        // Check visibility for each tab
+        // Check each tab individually: get its own window position and visibility
         for target in page_targets {
+            let tab_monitor =
+                if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &target.id).await {
+                    eprintln!(
+                        "[browser] Port {} tab \"{}\" window center: ({}, {})",
+                        port, target.title, cx, cy
+                    );
+                    monitor_index_for_point(cx, cy)
+                } else {
+                    None
+                };
+
             let visible = if let Some(ws) = &target.web_socket_debugger_url {
                 check_tab_visible(ws).await
             } else {
@@ -432,12 +437,12 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
 
             eprintln!(
                 "[browser] Port {} tab: {} (visible={}, monitor={:?})",
-                port, target.title, visible, browser_monitor
+                port, target.title, visible, tab_monitor
             );
 
             candidates.push(Candidate {
                 target,
-                monitor: browser_monitor,
+                monitor: tab_monitor,
                 visible,
             });
         }
