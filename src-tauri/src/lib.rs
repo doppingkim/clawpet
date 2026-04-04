@@ -1,6 +1,7 @@
 mod browser;
 mod config_reader;
 mod image_saver;
+mod llm_enricher;
 mod obsidian_clipper;
 mod tag_ontology;
 mod vault_index;
