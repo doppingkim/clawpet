@@ -54,7 +54,7 @@ Return ONLY valid JSON, no markdown fences:
 {content}"#,
         tag_instructions = tag_instructions,
         existing_index = existing_index,
-        content = &content[..content.len().min(6000)],
+        content = &content[..content.floor_char_boundary(6000)],
     )
 }
 
