@@ -7,12 +7,19 @@ mod tag_ontology;
 mod vault_index;
 
 use std::io::Cursor;
+use std::sync::OnceLock;
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
+
+static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
+
+pub fn app_handle() -> Option<&'static tauri::AppHandle> {
+    APP_HANDLE.get()
+}
 
 #[derive(serde::Serialize)]
 struct FetchImageResult {
@@ -417,6 +424,8 @@ pub fn run() {
             save_browser_images
         ])
         .setup(|app| {
+            let _ = APP_HANDLE.set(app.handle().clone());
+
             // Build tray menu
             let show = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let hide = MenuItem::with_id(app, "hide", "Hide", true, None::<&str>)?;

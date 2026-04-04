@@ -3,6 +3,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::LazyLock;
+use tauri::Emitter;
 
 const EXTRACTION_JS: &str = include_str!("extract_page.js");
 
@@ -43,6 +44,13 @@ pub struct ClipResult {
     pub category: String,
     pub title: String,
     pub image_count: usize,
+}
+
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct EnrichEvent {
+    pub success: bool,
+    pub message: String,
 }
 
 // ---------- Categorization ----------
@@ -559,10 +567,49 @@ pub async fn clip_to_obsidian(pet_x: i32, pet_y: i32) -> Result<ClipResult, Stri
         }
     };
 
-    Ok(ClipResult {
+    let result = ClipResult {
         saved_path: md_path.to_string_lossy().to_string(),
         category: category.to_string(),
         title: result_title,
         image_count: image_filenames.len(),
-    })
+    };
+
+    // Spawn Phase 2 (background LLM enrichment) — only if API key is configured
+    let has_api_key = std::env::var("CLAWPET_CLAUDE_API_KEY").is_ok();
+    if !has_api_key {
+        eprintln!("[obsidian-clip] No CLAWPET_CLAUDE_API_KEY — Phase 2 skipped");
+        return Ok(result);
+    }
+
+    let phase2_path = md_path.to_string_lossy().to_string();
+    let phase2_content = page.content.clone();
+    tokio::spawn(async move {
+        eprintln!("[obsidian-clip] Phase 2: starting LLM enrichment...");
+        let event = match crate::llm_enricher::enrich_note(&phase2_path, &phase2_content).await {
+            Ok(enrich) => {
+                let msg = if enrich.category_changed {
+                    format!(
+                        "🏷️ +{} tags, {} links (→ {})",
+                        enrich.tags_added, enrich.links_added, enrich.new_category
+                    )
+                } else {
+                    format!("🏷️ +{} tags, {} links added", enrich.tags_added, enrich.links_added)
+                };
+                eprintln!("[obsidian-clip] Phase 2 success: {}", msg);
+                EnrichEvent { success: true, message: msg }
+            }
+            Err(e) => {
+                eprintln!("[obsidian-clip] Phase 2 failed: {}", e);
+                EnrichEvent {
+                    success: false,
+                    message: "⚠️ 태그 분석 실패 — 기본 저장 유지".to_string(),
+                }
+            }
+        };
+        if let Some(handle) = crate::app_handle() {
+            let _ = handle.emit("obsidian-enrich-done", &event);
+        }
+    });
+
+    Ok(result)
 }
