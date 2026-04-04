@@ -183,7 +183,8 @@ async function main() {
       }
 
       // Rate limit: ~1 req/sec for Haiku
-      await new Promise((r) => setTimeout(r, 1200));
+      // Rate limit: ~5K-7K tokens per request, 50K/min limit = ~7 req/min = ~9s between
+      await new Promise((r) => setTimeout(r, 10000));
     } catch (err) {
       console.error(`  ✗ Failed: ${err.message}`);
     }
