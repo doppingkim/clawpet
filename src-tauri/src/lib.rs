@@ -2,6 +2,8 @@ mod browser;
 mod config_reader;
 mod image_saver;
 mod obsidian_clipper;
+mod tag_ontology;
+mod vault_index;
 
 use std::io::Cursor;
 use tauri::{
