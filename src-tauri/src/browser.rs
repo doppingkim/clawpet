@@ -309,8 +309,14 @@ fn monitor_index_for_point(x: i32, y: i32) -> Option<usize> {
     })
 }
 
+/// Window bounds result including minimized state.
+struct WindowInfo {
+    center: (i32, i32),
+    minimized: bool,
+}
+
 /// Try to get browser window bounds from a CDP browser-level WebSocket.
-async fn get_browser_window_center(browser_ws_url: &str, target_id: &str) -> Option<(i32, i32)> {
+async fn get_window_info(browser_ws_url: &str, target_id: &str) -> Option<WindowInfo> {
     let commands = vec![serde_json::json!({
         "method": "Browser.getWindowForTarget",
         "params": { "targetId": target_id }
@@ -330,12 +336,21 @@ async fn get_browser_window_center(browser_ws_url: &str, target_id: &str) -> Opt
     let bounds_results = cdp_execute(browser_ws_url, bounds_commands).await.ok()?;
     let bounds = bounds_results.first()?.pointer("/result/bounds")?;
 
+    let window_state = bounds
+        .get("windowState")
+        .and_then(|v| v.as_str())
+        .unwrap_or("normal");
+    let minimized = window_state == "minimized";
+
     let left = bounds.get("left")?.as_i64()? as i32;
     let top = bounds.get("top")?.as_i64()? as i32;
     let width = bounds.get("width")?.as_i64()? as i32;
     let height = bounds.get("height")?.as_i64()? as i32;
 
-    Some((left + width / 2, top + height / 2))
+    Some(WindowInfo {
+        center: (left + width / 2, top + height / 2),
+        minimized,
+    })
 }
 
 /// Check which tab is visible (active) by running document.visibilityState via CDP.
@@ -374,6 +389,7 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
         target: CdpTarget,
         monitor: Option<usize>,
         visible: bool,
+        minimized: bool,
     }
 
     let mut candidates: Vec<Candidate> = Vec::new();
@@ -416,17 +432,18 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
             continue;
         }
 
-        // Check each tab individually: get its own window position and visibility
+        // Check each tab individually: get its own window position, visibility, and minimized state
         for target in page_targets {
-            let tab_monitor =
-                if let Some((cx, cy)) = get_browser_window_center(&browser_ws, &target.id).await {
+            let (tab_monitor, minimized) =
+                if let Some(info) = get_window_info(&browser_ws, &target.id).await {
+                    let (cx, cy) = info.center;
                     eprintln!(
-                        "[browser] Port {} tab \"{}\" window center: ({}, {})",
-                        port, target.title, cx, cy
+                        "[browser] Port {} tab \"{}\" window center: ({}, {}), minimized={}",
+                        port, target.title, cx, cy, info.minimized
                     );
-                    monitor_index_for_point(cx, cy)
+                    (monitor_index_for_point(cx, cy), info.minimized)
                 } else {
-                    None
+                    (None, false)
                 };
 
             let visible = if let Some(ws) = &target.web_socket_debugger_url {
@@ -436,14 +453,15 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
             };
 
             eprintln!(
-                "[browser] Port {} tab: {} (visible={}, monitor={:?})",
-                port, target.title, visible, tab_monitor
+                "[browser] Port {} tab: {} (visible={}, minimized={}, monitor={:?})",
+                port, target.title, visible, minimized, tab_monitor
             );
 
             candidates.push(Candidate {
                 target,
                 monitor: tab_monitor,
                 visible,
+                minimized,
             });
         }
     }
@@ -455,11 +473,11 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
         );
     }
 
-    // Priority 1: Visible tab on the same monitor as ClawPet
+    // Priority 1: Visible + not minimized + same monitor as ClawPet
     if let Some(pet_mon) = pet_monitor {
         if let Some(matched) = candidates
             .iter()
-            .find(|c| c.visible && c.monitor == Some(pet_mon))
+            .find(|c| c.visible && !c.minimized && c.monitor == Some(pet_mon))
         {
             eprintln!(
                 "[browser] Best match: visible tab on monitor {} -> {}",
@@ -469,31 +487,40 @@ pub(crate) async fn discover_tab_near_position(pet_x: i32, pet_y: i32) -> Result
         }
     }
 
-    // Priority 2: Any visible tab
-    if let Some(matched) = candidates.iter().find(|c| c.visible) {
+    // Priority 2: Any visible + not minimized tab
+    if let Some(matched) = candidates.iter().find(|c| c.visible && !c.minimized) {
         eprintln!(
-            "[browser] Using visible tab: {}",
+            "[browser] Using visible non-minimized tab: {}",
             matched.target.title
         );
         return Ok(matched.target.clone());
     }
 
-    // Priority 3: Any tab on same monitor
+    // Priority 3: Any non-minimized tab on same monitor
     if let Some(pet_mon) = pet_monitor {
         if let Some(matched) = candidates
             .iter()
-            .find(|c| c.monitor == Some(pet_mon))
+            .find(|c| !c.minimized && c.monitor == Some(pet_mon))
         {
             eprintln!(
-                "[browser] Using tab on monitor {}: {}",
+                "[browser] Using non-minimized tab on monitor {}: {}",
                 pet_mon, matched.target.title
             );
             return Ok(matched.target.clone());
         }
     }
 
-    // Fallback: first available
-    eprintln!("[browser] No match, using first available tab");
+    // Priority 4: Any non-minimized tab
+    if let Some(matched) = candidates.iter().find(|c| !c.minimized) {
+        eprintln!(
+            "[browser] Using first non-minimized tab: {}",
+            matched.target.title
+        );
+        return Ok(matched.target.clone());
+    }
+
+    // Fallback: first available (even minimized)
+    eprintln!("[browser] No non-minimized tab found, using first available");
     Ok(candidates.into_iter().next().unwrap().target)
 }
 
