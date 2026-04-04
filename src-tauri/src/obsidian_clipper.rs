@@ -72,11 +72,27 @@ fn categorize(hints: &str) -> &'static str {
         "부동산", "금값", "유가", "원자재", "펀드", "연금",
         "테슬라", "엔비디아", "애플", "삼성", "반도체",
     ];
+    let insight = [
+        "career", "productivity", "startup", "business", "strategy",
+        "design", "ux", "ui", "브랜딩", "마케팅", "커리어",
+        "영감", "인사이트", "창업", "사업", "기획",
+        "habit", "mindset", "leadership", "management",
+        "생산성", "자기개발", "독서", "글쓰기",
+    ];
 
     let c: usize = coding.iter().filter(|k| hints.contains(*k)).count();
     let m: usize = markets.iter().filter(|k| hints.contains(*k)).count();
+    let i: usize = insight.iter().filter(|k| hints.contains(*k)).count();
 
-    if m > c { "markets" } else { "coding" }
+    if m > c && m > i {
+        "finance"
+    } else if c > i {
+        "tech"
+    } else if i > 0 {
+        "insight"
+    } else {
+        "tech" // default fallback
+    }
 }
 
 // ---------- Filename helpers ----------
