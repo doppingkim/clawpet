@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { useStore } from "../store/useStore";
 import { useAnimation } from "../hooks/useAnimation";
 import { useDrag } from "../hooks/useDrag";
@@ -290,6 +291,18 @@ export function Character() {
       document.removeEventListener("keydown", onKeyDown);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    const unlisten = listen<{ success: boolean; message: string }>(
+      "obsidian-enrich-done",
+      (event) => {
+        showSpeechBubble(event.payload.message);
+      },
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [showSpeechBubble]);
 
   const spriteUrl = SPRITE_MAP[animation];
   const offsetX = frame * 128;
